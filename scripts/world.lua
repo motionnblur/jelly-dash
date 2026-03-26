@@ -11,11 +11,12 @@ function World.init()
     
     if game.createPlatform then
         -- Generic Platform Creator: x, y, z, w, h, d, color
-        game.createPlatform(5, 2, 0, 4, 0.5, 4, 0x00ff88)
-        game.createPlatform(-6, 4, 0, 4, 0.5, 4, 0xff3366)
-        game.createPlatform(10, 6, 0, 4, 0.5, 4, 0x3366ff)
-        game.createPlatform(16, 8, 0, 4, 0.5, 4, 0xff7700)
-        game.createPlatform(22, 10, 0, 4, 0.5, 4, 0xdd00ff)
+        -- Staggered staircase: each step stays within a reliable jump arc.
+        game.createPlatform(3.5, 1.9, 0, 4, 0.5, 4, 0x00ff88)
+        game.createPlatform(9.0, 3.1, 0, 4, 0.5, 4, 0xff3366)
+        game.createPlatform(14.5, 4.3, 0, 4, 0.5, 4, 0x3366ff)
+        game.createPlatform(20.0, 5.5, 0, 4, 0.5, 4, 0xff7700)
+        game.createPlatform(25.5, 6.7, 0, 4, 0.5, 4, 0xdd00ff)
     end
 
     -- Spawn Random Coins on the ground
