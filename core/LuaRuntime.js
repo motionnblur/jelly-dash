@@ -19,6 +19,12 @@ export class LuaRuntime {
     console.log("Lua Runtime initialized");
   }
 
+  mountFile(path, content) {
+    if (this.lua) {
+      this.lua.mountFile(path, content);
+    }
+  }
+
   async run(script) {
     if (!this.isReady) {
       console.warn("Lua Runtime not ready yet");

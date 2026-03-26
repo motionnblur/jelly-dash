@@ -1,8 +1,12 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
-// Import Lua scripts as raw text (Vite feature)
-import initLua from "../scripts/init.lua?raw";
+// Automatically load all Lua files in the scripts folder
+const luaModules = import.meta.glob("../scripts/*.lua", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
 
 // Main Engine Components
 let scene, camera, renderer, world, clock;
@@ -97,8 +101,14 @@ async function init() {
     },
   });
 
-  // 5. Run initial Lua script (World creation starts here)
-  await luaRuntime.run(initLua);
+  // Mount all Lua scripts from the scripts directory
+  for (const path in luaModules) {
+    const fileName = path.split("/").pop(); // e.g., "init.lua"
+    luaRuntime.mountFile(fileName, luaModules[path]);
+  }
+
+  // 5. Run the entry point (init.lua)
+  await luaRuntime.run('require("init")');
 
   // All world creation (Ground, Platforms, Player) is now handled by Lua
   // See scripts/init.lua
