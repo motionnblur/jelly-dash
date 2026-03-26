@@ -11,7 +11,7 @@ const luaModules = import.meta.glob("../scripts/*.lua", {
 
 // Main Engine Components
 let scene, camera, renderer, world, clock;
-let player, playerBody;
+let player, playerBody, playerCollider;
 let platforms = [];
 let coins = [];
 let coinsCollected = 0;
@@ -22,6 +22,8 @@ let playerState = {
   particleTimer: 0,
   lastGrounded: true,
   lastVelY: 0,
+  gelMass: 1.0, 
+  isGameOver: false,
   jellyUniforms: {
     uVelocity: { value: new THREE.Vector3() },
     uImpact: { value: 0 },
@@ -310,7 +312,7 @@ function createPlayer() {
   const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
     .setFriction(0)
     .setRestitution(0);
-  world.createCollider(colliderDesc, playerBody);
+  playerCollider = world.createCollider(colliderDesc, playerBody);
 }
 
 /**
@@ -357,8 +359,31 @@ function createCoin(x, y, z) {
  * Creates visual particles at a position
  */
 function spawnParticles(x, y, z, color, count = 8, speedScale = 1.0) {
+  // Gel Loss Mechanic: Green particles represent lost mass
+  if (color === 0x44ff44) {
+    const lossPerParticle = 0.003; 
+    playerState.gelMass -= (count * lossPerParticle);
+
+    // Death Check
+    if (playerState.gelMass < 0.35 && !playerState.isGameOver) {
+      playerState.isGameOver = true;
+      uiManager.showGameOver();
+      // Freeze the player physics
+      if (playerBody) {
+        playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+    }
+    
+    // Safety cap for visuals
+    playerState.gelMass = Math.max(0.3, playerState.gelMass);
+  }
+
+  // Calculate size based on current mass (if it's a player gel particle)
+  const particleSize = 0.1 * (color === 0x44ff44 ? playerState.gelMass : 1.0);
+
   for (let i = 0; i < count; i++) {
-    const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const geometry = new THREE.SphereGeometry(particleSize, 8, 8);
     const material = new THREE.MeshStandardMaterial({
       color: color,
       emissive: color,
@@ -448,6 +473,24 @@ function animate() {
 
   const delta = clock.getDelta();
 
+  // If game is over, pause most logic
+  if (playerState.isGameOver) {
+    // Still update particles for a fading effect
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life -= delta * 1.5;
+      p.mesh.material.opacity = p.life;
+      if (p.life <= 0) {
+        scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+        particles.splice(i, 1);
+      }
+    }
+    renderer.render(scene, camera);
+    return; 
+  }
+
   // Step World (Fixed timestep)
   world.step();
 
@@ -458,7 +501,7 @@ function animate() {
   const { translation: pos, hit } = handleInput(delta);
   const isGrounded = hit !== null;
 
-  // --- NEW: Shader-Based Jelly Physics ---
+  // --- NEW: Shader-Based Jelly Physics & Collider Scaling ---
   const vel = playerBody.linvel();
   playerState.jellyUniforms.uTime.value += delta;
   
@@ -486,7 +529,20 @@ function animate() {
   playerState.lastGrounded = isGrounded;
   playerState.lastVelY = vel.y;
 
-  // 2. Calculate Squash and Stretch Targets
+  // 2. Update Collider to match current gel mass (biological size)
+  // We recreate it for accuracy in Rapier WASM, but only if it changed significantly
+  const currentMass = playerState.gelMass;
+  if (playerCollider && (!playerState._lastColliderMass || Math.abs(playerState._lastColliderMass - currentMass) > 0.01)) {
+    world.removeCollider(playerCollider, false);
+    const halfSize = 0.5 * currentMass;
+    const desc = RAPIER.ColliderDesc.cuboid(halfSize, halfSize, halfSize)
+      .setFriction(0)
+      .setRestitution(0);
+    playerCollider = world.createCollider(desc, playerBody);
+    playerState._lastColliderMass = currentMass;
+  }
+
+  // 3. Calculate Squash and Stretch Targets
   let targetScaleY = 1.0;
   let targetScaleXZ = 1.0;
   
@@ -499,6 +555,10 @@ function animate() {
     targetScaleXZ = 1.0 + speedFactor;
     targetScaleY = 1.0 - speedFactor * 0.2;
   }
+
+  // Multiply by current gel mass (biological size)
+  targetScaleY *= playerState.gelMass;
+  targetScaleXZ *= playerState.gelMass;
 
   // Smooth the scale in JS (it's O(1) so it's fine) and pass to Shader
   const stiffness = 15.0; // Shader makes it feel faster, so lower stiffness

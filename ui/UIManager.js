@@ -6,6 +6,14 @@ export class UIManager {
   constructor() {
     this.coinValueEl = document.getElementById("coin-value");
     this.loadingEl = document.getElementById("loading");
+    this.gameOverEl = document.getElementById("game-over");
+    this.retryBtn = document.getElementById("retry-btn");
+
+    if (this.retryBtn) {
+      this.retryBtn.addEventListener("click", () => {
+        window.location.reload();
+      });
+    }
   }
 
   /**
@@ -15,6 +23,12 @@ export class UIManager {
   updateCoinCount(count) {
     if (this.coinValueEl) {
       this.coinValueEl.innerText = count.toString();
+    }
+  }
+
+  showGameOver() {
+    if (this.gameOverEl) {
+      this.gameOverEl.style.display = "flex";
     }
   }
 
