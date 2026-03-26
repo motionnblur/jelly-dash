@@ -324,9 +324,13 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
     collider,
     originalY: y,
     currentY: y,
+    originalX: x,
+    currentX: x,
     bobPhase: options.bobPhase ?? Math.random() * Math.PI * 2,
     motionAmplitude: options.motionAmplitude ?? 0,
     motionSpeed: options.motionSpeed ?? 0,
+    swingAmplitude: options.swingAmplitude ?? 0,
+    swingSpeed: options.swingSpeed ?? 0,
     isFinal: !!options.isFinal,
     definition: options.definition ?? null,
   };
@@ -602,6 +606,8 @@ function buildLevel(levelNumber) {
         definition,
         motionAmplitude: definition.motionAmplitude,
         motionSpeed: definition.motionSpeed,
+        swingAmplitude: definition.swingAmplitude,
+        swingSpeed: definition.swingSpeed,
         bobPhase: definition.bobPhase,
       },
     );
@@ -804,11 +810,18 @@ function updatePlatforms(hit, delta) {
     const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
 
     platform.currentY += (targetY - platform.currentY) * alpha * Math.min(1, delta * 60);
+
+    const swingOffset = platform.swingAmplitude > 0
+      ? Math.cos(playerState.jellyUniforms.uTime.value * platform.swingSpeed + platform.bobPhase) * platform.swingAmplitude
+      : 0;
+    platform.currentX = platform.originalX + swingOffset;
+
     platform.body.setNextKinematicTranslation({
-      x: platform.mesh.position.x,
+      x: platform.currentX,
       y: platform.currentY,
       z: platform.mesh.position.z,
     });
+    platform.mesh.position.x = platform.currentX;
     platform.mesh.position.y = platform.currentY;
   }
 }
@@ -1059,6 +1072,7 @@ function generateLevelProfile(level, isRespite) {
     ? "plateau"
     : LEVEL_PATTERNS[Math.floor(rng() * LEVEL_PATTERNS.length)];
   const hasWavingPlatforms = level > 5;
+  const hasSwingingPlatforms = level >= 3;
 
   let gapScale = 1;
   let layout = [];
@@ -1082,6 +1096,7 @@ function generateLevelProfile(level, isRespite) {
       earlyPressure,
       level,
       hasWavingPlatforms,
+      hasSwingingPlatforms,
     });
     estimatedDrain = estimateLayoutDrain(layout);
     if (estimatedDrain <= MAX_SAFE_LEVEL_DRAIN) {
@@ -1117,6 +1132,7 @@ function createLayoutCandidate(config) {
     earlyPressure,
     level,
     hasWavingPlatforms,
+    hasSwingingPlatforms,
   } = config;
 
   const layout = [];
@@ -1150,6 +1166,10 @@ function createLayoutCandidate(config) {
       earlyPressure,
     });
 
+    const rawSwingAmp = 0.22 + rng() * 0.28 + Math.min(0.2, Math.max(0, level - 12) * 0.009);
+    const rawSwingSpeed = 0.55 + rng() * 0.65;
+    const hasSwing = hasSwingingPlatforms && !isRespite && index > 0 && index % 2 === 1;
+
     layout.push({
       x,
       y,
@@ -1168,6 +1188,8 @@ function createLayoutCandidate(config) {
         hasWavingPlatforms && !isRespite && index > 0
           ? 1.7 + rng() * 0.9 + Math.min(0.45, Math.max(0, level - 6) * 0.02)
           : 0,
+      swingAmplitude: hasSwing ? rawSwingAmp : 0,
+      swingSpeed: hasSwing ? rawSwingSpeed : 0,
     });
   }
 
@@ -1195,6 +1217,8 @@ function createLayoutCandidate(config) {
     bobPhase: ((level * 31 + platformCount * 17 + 11) % 360) * (Math.PI / 180),
     motionAmplitude: 0,
     motionSpeed: 0,
+    swingAmplitude: 0,
+    swingSpeed: 0,
   });
 
   return layout;
@@ -1320,6 +1344,8 @@ function setupTestingHooks() {
         final: platform.isFinal,
         motionAmplitude: Number(platform.motionAmplitude.toFixed(3)),
         motionSpeed: Number(platform.motionSpeed.toFixed(3)),
+        swingAmplitude: Number(platform.swingAmplitude.toFixed(3)),
+        swingSpeed: Number(platform.swingSpeed.toFixed(3)),
       })),
     });
 
