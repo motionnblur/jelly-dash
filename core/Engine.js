@@ -36,6 +36,10 @@ const WALK_GEL_COST = 0.018;
 const WALK_STEP_DISTANCE = 2.0;
 const GEL_CRITICAL_THRESHOLD = 0.28;
 const GEL_GAME_OVER_THRESHOLD = 0.0;
+const PLAYER_GROUND_RAY_OFFSETS = [-0.45, -0.22, 0, 0.22, 0.45];
+const PLAYER_GROUND_RAY_START_Y = -0.4;
+const PLAYER_GROUND_RAY_LENGTH = 0.6;
+const PLAYER_GROUND_COYOTE_TIME = 0.14;
 
 const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
 const LEVEL_COLORS = [
@@ -54,6 +58,7 @@ const playerState = {
   lastVelY: 0,
   particleTimer: 0,
   walkDistanceAccumulator: 0,
+  groundedCoyoteTimer: 0,
   spawnLandingGrace: true,
   jellyUniforms: {
     uVelocity: { value: new THREE.Vector3() },
@@ -493,6 +498,7 @@ function resetPlayerForLevel() {
   playerState.lastVelY = 0;
   playerState.particleTimer = 0;
   playerState.walkDistanceAccumulator = 0;
+  playerState.groundedCoyoteTimer = 0;
   playerState.spawnLandingGrace = true;
   playerState.jellyUniforms.uVelocity.value.set(0, 0, 0);
   playerState.jellyUniforms.uImpact.value = 0;
@@ -618,23 +624,23 @@ function handleInput() {
   const velocity = playerBody.linvel();
   const translation = playerBody.translation();
   let moveX = 0;
-
-  const ray = new RAPIER.Ray(
-    { x: translation.x, y: translation.y - 0.4, z: translation.z },
-    { x: 0, y: -1, z: 0 },
-  );
-  const hit = world.castRay(ray, 0.24, true, null, null, null, playerBody);
+  const hit = sampleGroundHit(translation);
   const isGrounded = hit !== null;
+  playerState.groundedCoyoteTimer = isGrounded
+    ? PLAYER_GROUND_COYOTE_TIME
+    : Math.max(0, playerState.groundedCoyoteTimer - 1 / 60);
+  const canJump = isGrounded || playerState.groundedCoyoteTimer > 0;
 
   if (!levelState.isTransitioning && !levelState.isGameComplete) {
     if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= gameConfig.playerSpeed;
     if (keys["KeyD"] || keys["ArrowRight"]) moveX += gameConfig.playerSpeed;
 
-    if (keys.Space && isGrounded) {
+    if (keys.Space && canJump) {
       playerBody.setLinvel(
         { x: velocity.x, y: gameConfig.jumpImpulse, z: velocity.z },
         true,
       );
+      playerState.groundedCoyoteTimer = 0;
       spawnParticles(
         translation.x,
         translation.y - 0.4,
@@ -656,6 +662,25 @@ function handleInput() {
 
   playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
   return { translation, hit, isGrounded };
+}
+
+function sampleGroundHit(translation) {
+  for (const xOffset of PLAYER_GROUND_RAY_OFFSETS) {
+    const ray = new RAPIER.Ray(
+      {
+        x: translation.x + xOffset,
+        y: translation.y + PLAYER_GROUND_RAY_START_Y,
+        z: translation.z,
+      },
+      { x: 0, y: -1, z: 0 },
+    );
+    const hit = world.castRay(ray, PLAYER_GROUND_RAY_LENGTH, true, null, null, null, playerBody);
+    if (hit) {
+      return hit;
+    }
+  }
+
+  return null;
 }
 
 function updateCamera(targetPosition) {

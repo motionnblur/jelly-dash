@@ -29,7 +29,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Rapier initializes asynchronously through `RAPIER.init()`.
 - Gravity defaults to `-19.6`.
 - The player uses a dynamic rigid body with rotations locked on all axes.
-- Ground detection uses a downward raycast from slightly above the player base.
+- Ground detection uses a small set of downward raycasts from the player base so edge contact still counts as grounded, plus a short coyote window so near-edge jumps do not fail instantly.
 - The player collider is rebuilt when `gelMass` changes enough to keep collision size aligned with the visible body.
 - There is no physical ground plane in the current campaign. The game starts in space with the player on a floating launch platform.
 
