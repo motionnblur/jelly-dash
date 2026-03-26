@@ -3,7 +3,7 @@
 local World = {}
 
 function World.init()
-    print("Building base world...")
+    print("Building space backdrop...")
 
     if game.createGround then
         game.createGround()

@@ -7,8 +7,8 @@ local dashCooldown = 0
 
 function Player.init()
     if game.spawnPlayer then
-        print("Spawning Player at origin...")
-        game.spawnPlayer(0, 5, 0)
+        print("Spawning Player in space...")
+        game.spawnPlayer(0, 2.15, 0)
     end
 end
 

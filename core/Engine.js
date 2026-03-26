@@ -18,17 +18,18 @@ let player;
 let playerBody;
 let playerCollider;
 let animationId;
+let spaceBackdropGroup;
 
 const platforms = [];
 const particles = [];
 const keys = {};
 
-const SKY_COLOR = 0xf3f7ff;
-const FOG_COLOR = 0xf9fbff;
+const SKY_COLOR = 0x060914;
+const FOG_COLOR = 0x0b1020;
 const LEVEL_COUNT = 50;
 const LEVEL_SEED = 0x5f3759df;
 const PLATFORM_HEIGHT = 0.5;
-const PLAYER_SPAWN = { x: 0, y: 5, z: 0 };
+const PLAYER_SPAWN = { x: 0, y: 2.15, z: 0 };
 const MAX_SAFE_LEVEL_DRAIN = 0.90;
 const JUMP_GEL_COST = 0.045;
 const WALK_GEL_COST = 0.018;
@@ -96,7 +97,7 @@ async function init() {
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY_COLOR);
-  scene.fog = new THREE.Fog(FOG_COLOR, 18, 95);
+  scene.fog = new THREE.Fog(FOG_COLOR, 12, 120);
 
   camera = new THREE.PerspectiveCamera(
     75,
@@ -104,8 +105,8 @@ async function init() {
     0.1,
     1000,
   );
-  camera.position.set(0, 5, 12);
-  camera.lookAt(0, 2, 0);
+  camera.position.set(0, 4.4, 14);
+  camera.lookAt(0, 2.2, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -117,10 +118,10 @@ async function init() {
 
   clock = new THREE.Clock();
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9e5ff, 1.15));
+  scene.add(new THREE.HemisphereLight(0xc7d8ff, 0x0b1020, 0.95));
 
-  const sun = new THREE.DirectionalLight(0xfff2d7, 1.4);
-  sun.position.set(18, 32, 18);
+  const sun = new THREE.DirectionalLight(0xbcdcff, 1.25);
+  sun.position.set(12, 28, 16);
   sun.castShadow = true;
   sun.shadow.mapSize.width = 2048;
   sun.shadow.mapSize.height = 2048;
@@ -130,8 +131,8 @@ async function init() {
   sun.shadow.camera.bottom = -40;
   scene.add(sun);
 
-  const rimLight = new THREE.PointLight(0x7dd3fc, 0.9, 30);
-  rimLight.position.set(-10, 7, 12);
+  const rimLight = new THREE.PointLight(0x7dd3fc, 0.8, 42);
+  rimLight.position.set(-10, 10, 14);
   scene.add(rimLight);
 
   await luaRuntime.init({
@@ -188,36 +189,49 @@ function onKeyUp(event) {
 }
 
 function createGround() {
-  const backdrop = new THREE.Mesh(
-    new THREE.BoxGeometry(220, 1.2, 18),
-    new THREE.MeshStandardMaterial({
-      color: 0xefede6,
-      roughness: 0.95,
-      metalness: 0.02,
+  if (spaceBackdropGroup) {
+    scene.remove(spaceBackdropGroup);
+  }
+
+  spaceBackdropGroup = new THREE.Group();
+
+  const starCount = 420;
+  const positions = new Float32Array(starCount * 3);
+  const rng = mulberry32(0x8b51f1aa);
+
+  for (let index = 0; index < starCount; index += 1) {
+    const offset = index * 3;
+    positions[offset] = (rng() * 2 - 1) * 58;
+    positions[offset + 1] = rng() * 170 - 24;
+    positions[offset + 2] = (rng() * 2 - 1) * 52;
+  }
+
+  const starsGeometry = new THREE.BufferGeometry();
+  starsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  const starsMaterial = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.12,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  const stars = new THREE.Points(starsGeometry, starsMaterial);
+  spaceBackdropGroup.add(stars);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(72, 20, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0x0d1733,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.BackSide,
     }),
   );
-  backdrop.position.set(34, -2.25, 0);
-  backdrop.receiveShadow = true;
-  scene.add(backdrop);
+  spaceBackdropGroup.add(glow);
 
-  const geometry = new THREE.BoxGeometry(11, 2, 18);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xf9fbff,
-    roughness: 0.42,
-    metalness: 0.04,
-  });
-  const groundMesh = new THREE.Mesh(geometry, material);
-  groundMesh.position.x = 0.5;
-  groundMesh.position.y = -1;
-  groundMesh.receiveShadow = true;
-  scene.add(groundMesh);
-
-  const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0.5, -1, 0);
-  const rigidBody = world.createRigidBody(groundDesc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(5.5, 1, 9)
-    .setFriction(0)
-    .setRestitution(0);
-  world.createCollider(colliderDesc, rigidBody);
+  scene.add(spaceBackdropGroup);
 }
 
 function createPlatform(x, y, z, w, h, d, color, options = {}) {
@@ -498,8 +512,8 @@ function resetPlayerForLevel() {
     player.position.set(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z);
   }
 
-  camera.position.set(0, 5, 12);
-  camera.lookAt(0, 2, 0);
+  camera.position.set(0, 4.4, 14);
+  camera.lookAt(0, 2.2, 0);
   uiManager.hideGameOver();
   uiManager.hideGameComplete();
   uiManager.updateHealth(playerState.gelMass);
@@ -645,12 +659,12 @@ function handleInput() {
 }
 
 function updateCamera(targetPosition) {
-  const targetCamX = targetPosition.x;
-  const targetCamY = targetPosition.y + 4;
+  const targetCamX = targetPosition.x * 0.15;
+  const targetCamY = targetPosition.y + 4.8;
 
   camera.position.x += (targetCamX - camera.position.x) * 0.1;
   camera.position.y += (targetCamY - camera.position.y) * 0.1;
-  camera.lookAt(camera.position.x, targetPosition.y, 0);
+  camera.lookAt(targetPosition.x * 0.12, targetPosition.y + 1.2, 0);
 }
 
 function updateTransition(delta) {
@@ -933,24 +947,21 @@ function generateLevelProfile(level, isRespite) {
     lerp(4.2, 2.55, shapeProgress) +
     (isRespite ? 0.28 : 0) -
     earlyPressure * (isRespite ? 0.05 : 0.18);
-  const gapBase =
-    lerp(3.85, 5.85, shapeProgress) -
-    (isRespite ? 0.32 : 0) +
-    earlyPressure * (isRespite ? 0.10 : 0.35);
-  const gapVariance =
-    lerp(0.22, 1.25, shapeProgress) * (isRespite ? 0.72 : 1) +
-    earlyPressure * (isRespite ? 0.02 : 0.07);
-  const riseMax =
-    lerp(0.48, 1.55, shapeProgress) * (isRespite ? 0.8 : 1) +
-    earlyPressure * (isRespite ? 0.06 : 0.20);
-  const fallMax =
-    lerp(0.18, 0.85, shapeProgress) * (isRespite ? 0.82 : 1) +
-    earlyPressure * (isRespite ? 0.04 : 0.14);
-  const minY = lerp(1.9, 3.45, shapeProgress) - (isRespite ? 0.18 : 0);
-  const maxY =
-    lerp(3.7, 7.8, shapeProgress) -
-    (isRespite ? 0.12 : 0) +
-    earlyPressure * (isRespite ? 0.08 : 0.28);
+  const verticalGapBase =
+    lerp(2.45, 3.55, shapeProgress) -
+    (isRespite ? 0.28 : 0) +
+    earlyPressure * (isRespite ? 0.04 : 0.24);
+  const verticalGapVariance =
+    lerp(0.14, 0.58, shapeProgress) * (isRespite ? 0.76 : 1) +
+    earlyPressure * (isRespite ? 0.02 : 0.05);
+  const minX = lerp(-0.65, -2.15, shapeProgress) - (isRespite ? 0.18 : 0);
+  const maxX = lerp(0.65, 2.15, shapeProgress) + (isRespite ? 0.18 : 0);
+  const swayRightMax =
+    lerp(0.22, 1.45, shapeProgress) * (isRespite ? 0.76 : 1) +
+    earlyPressure * (isRespite ? 0.03 : 0.15);
+  const swayLeftMax =
+    lerp(0.18, 1.1, shapeProgress) * (isRespite ? 0.74 : 1) +
+    earlyPressure * (isRespite ? 0.02 : 0.12);
   const pattern = isRespite
     ? "plateau"
     : LEVEL_PATTERNS[Math.floor(rng() * LEVEL_PATTERNS.length)];
@@ -964,12 +975,12 @@ function generateLevelProfile(level, isRespite) {
     layout = createLayoutCandidate({
       platformCount,
       platformDiameter,
-      gapBase,
-      gapVariance,
-      riseMax,
-      fallMax,
-      minY,
-      maxY,
+      verticalGapBase,
+      verticalGapVariance,
+      minX,
+      maxX,
+      swayRightMax,
+      swayLeftMax,
       pattern,
       gapScale,
       progress: shapeProgress,
@@ -999,12 +1010,12 @@ function createLayoutCandidate(config) {
   const {
     platformCount,
     platformDiameter,
-    gapBase,
-    gapVariance,
-    riseMax,
-    fallMax,
-    minY,
-    maxY,
+    verticalGapBase,
+    verticalGapVariance,
+    minX,
+    maxX,
+    swayRightMax,
+    swayLeftMax,
     pattern,
     gapScale,
     progress,
@@ -1016,13 +1027,13 @@ function createLayoutCandidate(config) {
   } = config;
 
   const layout = [];
-  let x = 4.6;
-  let y = 1.9;
+  let x = 0;
+  let y = -1.6;
 
   for (let index = 0; index < platformCount; index += 1) {
-    const gapNoise = (rng() * 2 - 1) * gapVariance;
-    const gap = Math.max(3.45, (gapBase + gapNoise) * gapScale);
-    x += index === 0 ? gap * 0.96 : gap;
+    const gapNoise = (rng() * 2 - 1) * verticalGapVariance;
+    const gap = Math.max(2.25, (verticalGapBase + gapNoise) * gapScale);
+    y += index === 0 ? gap * 0.82 : gap;
 
     const diameterNoise = (rng() * 2 - 1) * 0.32 + (index % 3 === 0 ? 0.06 : 0);
     const sizeShrinkProgress = clamp((level - 3) / 9, 0, 1);
@@ -1033,14 +1044,14 @@ function createLayoutCandidate(config) {
         : 0;
     const diameter = clamp(platformDiameter + diameterNoise - sizeShrink, 1.95, 4.6);
 
-    y = computePlatformHeight({
+    x = computePlatformSway({
       index,
       platformCount,
-      y,
-      minY,
-      maxY,
-      riseMax,
-      fallMax,
+      x,
+      minX,
+      maxX,
+      swayRightMax,
+      swayLeftMax,
       pattern,
       rng,
       earlyPressure,
@@ -1068,20 +1079,20 @@ function createLayoutCandidate(config) {
   }
 
   const finalGap = Math.max(
-    3.7,
-    (gapBase + 0.45 + rng() * gapVariance + earlyPressure * (isRespite ? 0.08 : 0.18)) *
+    2.45,
+    (verticalGapBase + 0.38 + rng() * verticalGapVariance + earlyPressure * (isRespite ? 0.06 : 0.16)) *
       gapScale,
   );
-  const finalY = clamp(
-    y + (isRespite ? 0.06 : (rng() - 0.25) * Math.min(riseMax, 0.55)),
-    minY,
-    maxY,
+  const finalX = clamp(
+    x + (isRespite ? 0.04 : (rng() - 0.25) * Math.min(swayRightMax, 0.55)),
+    minX,
+    maxX,
   );
   const finalDiameter = clamp(platformDiameter + 0.22 + (isRespite ? 0.18 : 0), 3.0, 4.7);
 
   layout.push({
-    x: x + finalGap,
-    y: finalY,
+    x: finalX,
+    y: y + finalGap,
     z: 0,
     w: finalDiameter,
     h: PLATFORM_HEIGHT,
@@ -1096,15 +1107,15 @@ function createLayoutCandidate(config) {
   return layout;
 }
 
-function computePlatformHeight(config) {
+function computePlatformSway(config) {
   const {
     index,
     platformCount,
-    y,
-    minY,
-    maxY,
-    riseMax,
-    fallMax,
+    x,
+    minX,
+    maxX,
+    swayRightMax,
+    swayLeftMax,
     pattern,
     rng,
     earlyPressure,
@@ -1114,26 +1125,26 @@ function computePlatformHeight(config) {
 
   switch (pattern) {
     case "glide":
-      delta = lerp(0.18, riseMax, ratio) * (0.45 + rng() * 0.35);
+      delta = lerp(0.12, swayRightMax, ratio) * (0.45 + rng() * 0.35);
       if (index % 4 === 3) delta *= 0.55;
       break;
     case "pulse":
       delta =
         index % 3 === 1
-          ? -fallMax * (0.45 + rng() * 0.25)
-          : riseMax * (0.35 + rng() * 0.45);
+          ? -swayLeftMax * (0.45 + rng() * 0.25)
+          : swayRightMax * (0.35 + rng() * 0.45);
       break;
     case "switchback":
       delta =
         index % 4 < 2
-          ? riseMax * (0.45 + rng() * 0.4)
-          : -fallMax * (0.4 + rng() * 0.3);
+          ? swayRightMax * (0.45 + rng() * 0.4)
+          : -swayLeftMax * (0.4 + rng() * 0.3);
       break;
     case "crest":
       delta =
         ratio < 0.56
-          ? riseMax * (0.42 + rng() * 0.38)
-          : -fallMax * (0.18 + rng() * 0.18);
+          ? swayRightMax * (0.42 + rng() * 0.38)
+          : -swayLeftMax * (0.18 + rng() * 0.18);
       break;
     case "plateau":
       delta = index % 3 === 2 ? 0.14 + rng() * 0.18 : 0.04 + rng() * 0.08;
@@ -1148,16 +1159,18 @@ function computePlatformHeight(config) {
     delta += cadenceKick * earlyPressure * 0.14;
   }
 
-  return clamp(y + delta, minY, maxY);
+  return clamp(x + delta, minX, maxX);
 }
 
 function estimateLayoutDrain(layout) {
   let routeDistance = 0;
   let previousX = 0;
+  let previousY = 0;
 
   for (const platform of layout) {
-    routeDistance += platform.x - previousX;
+    routeDistance += Math.hypot(platform.x - previousX, platform.y - previousY);
     previousX = platform.x;
+    previousY = platform.y;
   }
 
   const jumpCost = layout.length * JUMP_GEL_COST;
@@ -1190,6 +1203,7 @@ function setupTestingHooks() {
         total: LEVEL_COUNT,
         label: levelState.currentProfile?.label ?? "",
         respite: !!levelState.currentProfile?.isRespite,
+        routeAxis: "vertical",
       },
       player: playerBody
         ? {

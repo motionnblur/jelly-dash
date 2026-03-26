@@ -3,7 +3,7 @@
 This document is the implementation-level guide for AI agents and developers working on this project. It describes the current architecture, gameplay rules, level-generation math, and the constraints that matter when changing difficulty.
 
 ## Project Overview
-This is a 3D side-scrolling platformer built with **Three.js** and **Rapier**. The player is a shrinking gel character that loses health while moving and jumping. Each level is a short airborne route of hexagonal platforms ending in a distinct final hex. Touching the final hex advances to the next level. The game contains a seeded **100-level campaign** with gradual difficulty growth and intermittent easier recovery levels.
+This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**. The player is a shrinking gel character that loses health while moving and jumping. Each level is a short airborne route of hexagonal platforms suspended in space, ending in a distinct final hex. Touching the final hex advances to the next level. The game contains a seeded **100-level campaign** with gradual difficulty growth and intermittent easier recovery levels.
 
 ## Tech Stack
 - **Rendering**: [Three.js](https://threejs.org/)
@@ -23,7 +23,7 @@ This is a 3D side-scrolling platformer built with **Three.js** and **Rapier**. T
   - level progression
   - platform creation and animation
   - deterministic test hooks
-- Lua no longer owns level layout. Lua now only initializes base world state and optional player behaviors.
+- Lua no longer owns level layout. Lua now only initializes the space backdrop and optional player behaviors.
 
 ### 2. Physics Model
 - Rapier initializes asynchronously through `RAPIER.init()`.
@@ -31,6 +31,7 @@ This is a 3D side-scrolling platformer built with **Three.js** and **Rapier**. T
 - The player uses a dynamic rigid body with rotations locked on all axes.
 - Ground detection uses a downward raycast from slightly above the player base.
 - The player collider is rebuilt when `gelMass` changes enough to keep collision size aligned with the visible body.
+- There is no physical ground plane in the current campaign. The game starts in space with the player on a floating launch platform.
 
 ### 3. Player / Gel Rules
 - Horizontal movement is direct X velocity assignment.
@@ -177,20 +178,19 @@ For each level profile, the generator computes:
 ```js
 platformCount = clamp(round(3 + softenedProgress * 8.0 + rng() * 1.5 + endgameBonus), 3, 10)
 platformDiameter = lerp(4.2, 2.55, softenedProgress) + respiteBonus
-gapBase = lerp(3.85, 5.85, softenedProgress) - respiteReduction
-gapVariance = lerp(0.22, 1.25, softenedProgress) * respiteScale
-riseMax = lerp(0.48, 1.55, softenedProgress) * respiteScale
-fallMax = lerp(0.18, 0.85, softenedProgress) * respiteScale
-minY = lerp(1.9, 3.45, softenedProgress) - respiteOffset
-maxY = lerp(3.7, 7.8, softenedProgress) - respiteOffset
+verticalGapBase = lerp(2.45, 3.55, softenedProgress) - respiteReduction
+verticalGapVariance = lerp(0.14, 0.58, softenedProgress) * respiteScale
+minX = lerp(-0.65, -2.15, softenedProgress) - respiteOffset
+maxX = lerp(0.65, 2.15, softenedProgress) + respiteOffset
+swayRightMax = lerp(0.22, 1.45, softenedProgress) * respiteScale
+swayLeftMax = lerp(0.18, 1.1, softenedProgress) * respiteScale
 ```
 
 Interpretation:
 - later levels use more platforms
 - smaller non-final platforms begin appearing from level 3 onward, and the shrink amount scales up through the campaign
 - respites get a softened version of the shrink so they still feel easier than adjacent routes
-- later levels widen gaps
-- later levels allow stronger vertical shape changes
+- later levels widen the vertical climb and increase the amount of lateral sway between platforms
 - later levels place the route higher in the frame
 - the first fifth of the campaign gets an extra difficulty bump from `earlyPressure`, so early routes are denser than a simple linear interpolation would produce
 
@@ -232,21 +232,21 @@ These are not separate level templates. They are different vertical delta functi
 Each route starts from:
 
 ```js
-x = 4.6
-y = 1.9
+x = 0
+y = -1.6
 ```
 
 For each non-final platform:
 
-1. sample horizontal gap noise
+1. sample vertical gap noise
 
 ```js
-gapNoise = (rng() * 2 - 1) * gapVariance
-gap = max(3.45, (gapBase + gapNoise) * gapScale)
+gapNoise = (rng() * 2 - 1) * verticalGapVariance
+gap = max(2.25, (verticalGapBase + gapNoise) * gapScale)
 ```
 
-2. advance x:
-- first step uses `gap * 0.96`
+2. advance y:
+- first step uses `gap * 0.82`
 - later steps use full `gap`
 
 3. compute platform diameter with small random wobble, then apply a campaign-scaled shrink to non-final platforms from level 3 onward:
@@ -255,13 +255,13 @@ gap = max(3.45, (gapBase + gapNoise) * gapScale)
 diameter = clamp(platformDiameter + randomOffset - sizeShrink, 1.95, 4.6)
 ```
 
-4. update `y` using the selected route pattern
+4. update `x` using the selected route pattern as lateral sway
 
 5. append platform definition
 
 The final platform is then added using:
-- a slightly larger final gap
-- a mostly similar height to the last route platform
+- a slightly larger final vertical gap
+- a mostly similar horizontal offset to the last route platform
 - a slightly larger diameter, but not as generous as the first pass of the campaign generator
 - fixed gold color and `isFinal = true`
 
@@ -273,7 +273,7 @@ The generator estimates whether a layout is safe before finalizing it.
 The estimate is:
 
 ```js
-routeDistance = sum(platform[i].x - previousX)
+routeDistance = sum(distance(platform[i], platform[i - 1]))
 jumpCost = layout.length * JUMP_GEL_COST
 walkCost = routeDistance * (WALK_GEL_COST / WALK_STEP_DISTANCE)
 estimatedDrain = jumpCost + walkCost
@@ -289,7 +289,7 @@ If:
 estimatedDrain > MAX_SAFE_LEVEL_DRAIN
 ```
 
-the generator reduces horizontal spread:
+the generator reduces route spread:
 
 ```js
 gapScale *= 0.92
@@ -302,9 +302,9 @@ This is the main safety valve that keeps late-game routes from becoming mathemat
 ### What Makes Later Levels Harder
 Difficulty growth is mostly from four sources:
 - more jumps
-- more walking distance between jumps
+- more movement between jumps, both vertically and sideways
 - smaller landing surfaces
-- bigger and less predictable vertical shape changes
+- bigger and less predictable vertical climb changes
 - a subset of non-final platforms also move vertically in looping motion from level 6 onward
 
 The generator does **not** currently add moving hazards, enemies, or fake branch routes. Difficulty is still purely traversal and resource pressure.
