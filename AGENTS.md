@@ -18,51 +18,52 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - **Initialization**: Async initialization via `RAPIER.init()` in `core/Engine.js`.
 - **World**: 3D world with gravity set to `-19.6` (customized for snappy platforming).
 - **Player Body**: Dynamic rigid body with locked rotations (`enabledRotations(false, false, false)`).
-- **Ground Detection**: Implemented via **Raycasting**. A ray is cast from slightly above the player's base downwards. The `playerBody` is explicitly excluded from this raycast to prevent self-collision bugs.
+- **Ground Detection**: Implemented via **Raycasting**. A ray is cast from slightly above the player's base downwards. The `playerBody` is explicitly excluded from this raycast.
+- **Dynamic Collider**: The player's collider is a **Cuboid**. It is automatically recalculated and re-added to the `playerBody` whenever the `gelMass` changes significantly (>0.01 threshold) to ensure the hit-box matches the visual size.
 
-### 2. Player Controller (Mario-style)
+### 2. Player Controller & Gel Mechanics
 - **Movement**: Linear velocity application on the X-axis (`PLAYER_SPEED = 8`).
-- **Jumping**:
-    - Uses `JUMP_IMPULSE = 12`.
-    - **Variable Jump Height**: If the "Space" key is released while the player is ascending, the upward velocity is dampened (`velocity.y * 0.9`), allowing for short hops vs. full jumps.
-- **2.5D Constraint**: Movement is strictly on the X-Y plane. The Z-axis is fixed to `0` in physics velocity logic to maintain the side-scrolling alignment.
+- **Jumping**: Uses `JUMP_IMPULSE = 12`. Supports variable jump heights by dampening Y-velocity on button release.
+- **Gel Mass (Atrophy)**: The character has a `gelMass` (starts at 1.0). Spawning green particles (jumping, landing, trailing) subtracts small amounts from this mass.
+- **Visual Scaling**: The character's mesh scale is calculated as a product of its **Dynamic Squash/Stretch** and its current **Gel Mass**.
+- **Game Over**: If `gelMass` falls below **0.35**, the game simulation freezes, and the "Gel Depleted" UI appears.
 
-### 3. Camera System
-- **Smoothing**: Uses linear interpolation (Lerp) to follow the player on both X and Y axes.
+### 3. Particle System
+- **Scaling**: Particles spawned with the color `0x44ff44` (gel color) scale their radius based on the current `playerState.gelMass`.
+- **Impact Scaling**: On landing, particle count and velocity scale dynamically based on the vertical velocity just before impact (impact velocity).
+- **Fading**: Particles use a `life` value (1.0 to 0.0) to modulate material opacity before being disposed of and removed from the scene.
+
+### 4. Camera System
+- **Smoothing**: Uses linear interpolation (Lerp) on target X and Y axes.
 - **Fixed Z**: Camera is positioned at `Z: 12` looking towards `Z: 0`.
 
-### 4. Lua Scripting System
+### 5. Lua Scripting System
 - **Runtime**: Initialized in `core/LuaRuntime.js` using `wasmoon`.
 - **Interop**: JavaScript objects are exposed to Lua.
     - `config`: Table containing `playerSpeed`, `jumpImpulse`, and `gravity`.
     - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)`, `createGround()`, `spawnPlayer(x,y,z)`, `setGravity(y)`, `isKeyDown(code)`, `applyImpulse(x,y,z)`, and `getVelocity()`.
-- **Hooks**: 
-    - `onUpdate(delta)`: Optional global Lua function called every frame from the JS animate loop.
-- **Workflow**: Scripts reside in the `scripts/` directory and are imported as raw text by Vite to be executed at runtime.
-
-### 5. Hot Module Replacement (HMR)
-- Custom HMR support is implemented in `core/Engine.js` using `import.meta.hot`.
-- **Cleanup**: On module reload, the previous `canvas` is removed, the `requestAnimationFrame` loop is cancelled, and window event listeners are detached to prevent memory leaks and duplicate renders.
+- **Hooks**: `onUpdate(delta)`: Optional global Lua function called every frame.
 
 ### 6. Weighted Platform System
-- **Kinematic Physics**: Platforms use `kinematicPositionBased` rigid bodies instead of static ones to allow for manual Y-axis displacement.
-- **Sinking Mechanics**: When the player stands on a platform (detected via grounded raycast), the platform sinks (`0.6` units) to simulate weight.
-- **Leaf-like Return**: Platforms smoothly return to their original height using lerp-based interpolation once cleared, mimicking floating objects.
+- **Kinematic Physics**: Platforms use `kinematicPositionBased` rigid bodies to allow for manual displacement.
+- **Sinking Mechanics**: Platforms sink (`0.6` units) when the player stands on them (detected via grounded raycast hits).
+- **Leaf-like Return**: Platforms smoothly return to their original height using lerp once cleared.
 
 ## 📂 File Structure
-- `index.html`: Base entry point with UI overlay and CSS styles.
+- `index.html`: Base entry point with UI overlay, CSS styles, and **Game Over** screen.
 - `main.js`: Minimal entry point that boots the core engine.
 - `core/`: Core engine functionality.
-    - `Engine.js`: Main logic for rendering, physics, and game loop.
+    - `Engine.js`: Main logic for rendering, physics, gel mechanics, and game loop.
     - `LuaRuntime.js`: Wrapper for the Wasmoon Lua VM.
+- `ui/`: UI components and styling.
+    - `UIManager.js`: Handles coin updates, loading screen, and game-over transitions.
 - `scripts/`: Directory for Lua game scripts (e.g., `init.lua`).
 - `package.json`: Vite configuration and dependency management.
-- `README.md`: User-facing instructions.
 
 ## 💡 Developer Notes for Agents
-- **Adding Platforms**: Use `game.createPlatform(x, y, z, w, h, d, color)` in Lua. This creates a **Kinematic** body that handles the sinking/weight effect automatically in the JS `animate` loop.
-- **Model Integration**: To replace the box player, import a GLTF model and sync its position with `playerBody.translation()` in the `animate` loop in `core/Engine.js`.
-- **Ground Raycast**: If you change the player scale, remember to adjust the ray start offset and length in `handleInput()` (currently hardcoded for a `1x1x1` box).
+- **Adding Platforms**: Use `game.createPlatform(x, y, z, w, h, d, color)` in Lua.
+- **Gel Scaling**: Any new particle emitter that should affect the player's mass should use the `0x44ff44` color in `spawnParticles`.
+- **Collider Sync**: Don't manually resize the player body; update `playerState.gelMass` and let the collision synchronization handle the recalculation.
 
 ---
-*Last Updated: March 2026*
+*Last Updated: March 2026 (Updated with Gel Mechanics)*
