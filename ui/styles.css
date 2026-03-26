@@ -80,6 +80,15 @@ canvas {
   color: var(--ink);
 }
 
+.health-unit {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(11, 18, 32, 0.45);
+  margin-left: 2px;
+  align-self: baseline;
+}
+
 #health-value.is-critical {
   color: #a12611;
   animation: healthShake 0.34s ease-in-out infinite;

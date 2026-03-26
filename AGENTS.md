@@ -37,20 +37,28 @@ This is a 3D side-scrolling platformer built with **Three.js** and **Rapier**. T
 - Jumping uses `jumpImpulse = 12`.
 - Releasing jump early damps upward velocity for variable jump height.
 - `gelMass` starts each level at `1.0`.
-- Health warning starts at `35%`, but actual death happens only at `0.0`.
+- Health warning starts at `28 HP` (28%), but actual death happens only at `0`.
 - When the player dies, the run freezes and the `GEL DEPLETED` overlay appears.
 
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
-  - `JUMP_GEL_COST = 0.021`
+  - `JUMP_GEL_COST = 0.045` (4.5 HP per jump at 100-HP display scale)
 - Walking drain is distance-based:
-  - `WALK_GEL_COST = 0.01`
-  - one walking drain event fires every `WALK_STEP_DISTANCE = 2.35` world units while grounded and moving
+  - `WALK_GEL_COST = 0.018`
+  - one walking drain event fires every `WALK_STEP_DISTANCE = 2.0` world units while grounded and moving
+  - effective drain rate: `0.018 / 2.0 = 0.009` gel per world unit walked
 - Landing particles are cosmetic feedback and currently do not directly drain health.
 - Level generation is tuned around a target maximum expected level drain:
-  - `MAX_SAFE_LEVEL_DRAIN = 0.68`
+  - `MAX_SAFE_LEVEL_DRAIN = 0.90`
 
-This is the main balancing invariant: a generated route should usually consume well under full gel if the player follows the intended line with a small error margin.
+This is the main balancing invariant. Drain is intentionally aggressive so health management is a real constraint at all stages. Expected per-phase drain at perfect play:
+- Opening Arc (levels 1–9): ~28–35 HP
+- Rising Rhythm (levels 10–21): ~50–62 HP
+- Tighter Gaps (levels 22–35): ~68–78 HP
+- Precision Run (levels 36–46): ~80–88 HP
+- Final Ascent (levels 47–50): ~88–92 HP
+
+Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 0.0–1.0 for physics/visual scaling). Critical warning triggers at ≤ 28 HP.
 
 ### 5. Platform Model
 - All route platforms are kinematic hexagonal prisms.
@@ -63,7 +71,7 @@ This is the main balancing invariant: a generated route should usually consume w
 - If the grounded raycast hits the final platform, the next level is queued.
 
 ### 6. Level Flow
-- The game contains `LEVEL_COUNT = 100`.
+- The game contains `LEVEL_COUNT = 50`.
 - Each level is generated from a seeded profile at startup.
 - Entering the final hex starts a short transition, then builds the next level.
 - Every new level resets:
@@ -72,7 +80,7 @@ This is the main balancing invariant: a generated route should usually consume w
   - jelly animation state
   - particle state
 - If the player falls below `y = -10`, the current level restarts instead of leaving the player in an endless fall.
-- Level 100 completion shows a campaign-complete overlay.
+- Level 50 completion shows a campaign-complete overlay.
 
 ## Level Generation System
 
@@ -137,16 +145,17 @@ The game periodically inserts easier levels. These are not every Nth level exact
 
 The logic:
 - track `levelsSinceRespite`
-- force a respite if there have been 9 non-respite levels in a row
-- allow a respite after 5 levels with a probability:
+- force a respite if there have been 8 non-respite levels in a row
+- allow a respite after 4 levels with a probability:
 
 ```js
-0.18 + level * 0.001
+0.22 + level * 0.002
 ```
 
 This creates:
 - guaranteed spacing ceiling so the player never goes too long without relief
 - enough randomness that the easier levels do not feel scheduled
+- slightly more frequent respites than the 100-level version — the 50-level campaign is shorter, so pacing recovery windows matter more
 
 When a level is marked as respite:
 - its effective difficulty scalar is reduced:
@@ -165,12 +174,12 @@ softenedProgress = max(0, progress - 0.08 - rng() * 0.03)
 For each level profile, the generator computes:
 
 ```js
-platformCount = clamp(round(3 + softenedProgress * 8.5 + rng() * 1.6 + endgameBonus), 3, 11)
-platformDiameter = lerp(4.0, 2.55, softenedProgress) + respiteBonus
-gapBase = lerp(4.1, 5.85, softenedProgress) - respiteReduction
-gapVariance = lerp(0.28, 1.25, softenedProgress) * respiteScale
-riseMax = lerp(0.55, 1.55, softenedProgress) * respiteScale
-fallMax = lerp(0.22, 0.85, softenedProgress) * respiteScale
+platformCount = clamp(round(3 + softenedProgress * 8.0 + rng() * 1.5 + endgameBonus), 3, 10)
+platformDiameter = lerp(4.2, 2.55, softenedProgress) + respiteBonus
+gapBase = lerp(3.85, 5.85, softenedProgress) - respiteReduction
+gapVariance = lerp(0.22, 1.25, softenedProgress) * respiteScale
+riseMax = lerp(0.48, 1.55, softenedProgress) * respiteScale
+fallMax = lerp(0.18, 0.85, softenedProgress) * respiteScale
 minY = lerp(1.9, 3.45, softenedProgress) - respiteOffset
 maxY = lerp(3.7, 7.8, softenedProgress) - respiteOffset
 ```
@@ -354,9 +363,9 @@ Rule of thumb:
 
 ### If You Want To Make Respite Levels More Frequent
 Adjust the respite insertion logic in `buildLevelProfiles()`:
-- lower the minimum spacing from 4
-- lower the forced spacing from 8
-- raise the respite probability coefficient
+- lower the minimum spacing from 3 (currently 4)
+- lower the forced spacing from 7 (currently 8)
+- raise the respite probability coefficient (currently `0.22 + level * 0.002`)
 
 ### If You Want Hand-Authored Milestone Levels
 The cleanest approach is:
@@ -383,4 +392,4 @@ Look at:
 - `queueLevelRestart()`
 
 ---
-*Last Updated: March 26, 2026 (100-level campaign + generator math documented)*
+*Last Updated: March 26, 2026 (50-level campaign, aggressive drain economy — 100 HP display, health management as core challenge)*

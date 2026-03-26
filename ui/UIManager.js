@@ -37,12 +37,12 @@ export class UIManager {
     const percent = Math.round(clamped * 100);
 
     if (this.healthValueEl) {
-      this.healthValueEl.innerText = `${percent}%`;
+      this.healthValueEl.innerText = `${percent}`;
     }
 
     if (this.healthFillEl) {
       this.healthFillEl.style.width = `${percent}%`;
-      const isCritical = percent <= 35;
+      const isCritical = percent <= 28;
       this.healthFillEl.dataset.critical = isCritical ? "true" : "false";
       if (this.healthPanelEl) {
         this.healthPanelEl.classList.toggle("is-critical", isCritical);

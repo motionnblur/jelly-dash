@@ -25,15 +25,15 @@ const keys = {};
 
 const SKY_COLOR = 0xf3f7ff;
 const FOG_COLOR = 0xf9fbff;
-const LEVEL_COUNT = 100;
+const LEVEL_COUNT = 50;
 const LEVEL_SEED = 0x5f3759df;
 const PLATFORM_HEIGHT = 0.5;
 const PLAYER_SPAWN = { x: 0, y: 5, z: 0 };
-const MAX_SAFE_LEVEL_DRAIN = 0.68;
-const JUMP_GEL_COST = 0.021;
-const WALK_GEL_COST = 0.01;
-const WALK_STEP_DISTANCE = 2.35;
-const GEL_CRITICAL_THRESHOLD = 0.35;
+const MAX_SAFE_LEVEL_DRAIN = 0.90;
+const JUMP_GEL_COST = 0.045;
+const WALK_GEL_COST = 0.018;
+const WALK_STEP_DISTANCE = 2.0;
+const GEL_CRITICAL_THRESHOLD = 0.28;
 const GEL_GAME_OVER_THRESHOLD = 0.0;
 
 const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
@@ -293,7 +293,9 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
     collider,
     originalY: y,
     currentY: y,
-    bobPhase: Math.random() * Math.PI * 2,
+    bobPhase: options.bobPhase ?? Math.random() * Math.PI * 2,
+    motionAmplitude: options.motionAmplitude ?? 0,
+    motionSpeed: options.motionSpeed ?? 0,
     isFinal: !!options.isFinal,
     definition: options.definition ?? null,
   };
@@ -531,6 +533,9 @@ function buildLevel(levelNumber) {
       {
         isFinal: definition.isFinal,
         definition,
+        motionAmplitude: definition.motionAmplitude,
+        motionSpeed: definition.motionSpeed,
+        bobPhase: definition.bobPhase,
       },
     );
   }
@@ -693,7 +698,10 @@ function updatePlatforms(hit, delta) {
     const returnSpeed = platform.isFinal ? 0.045 : 0.03;
     const bobOffset = platform.isFinal
       ? Math.sin(playerState.jellyUniforms.uTime.value * 1.8 + platform.bobPhase) * 0.08
-      : 0;
+      : platform.motionAmplitude > 0
+        ? Math.sin(playerState.jellyUniforms.uTime.value * platform.motionSpeed + platform.bobPhase) *
+          platform.motionAmplitude
+        : 0;
 
     const targetY = (isSteppedOn ? platform.originalY - sinkDepth : platform.originalY) + bobOffset;
     const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
@@ -861,6 +869,18 @@ function lerp(start, end, alpha) {
   return start + (end - start) * alpha;
 }
 
+// Levels 1-5 are a flat intro zone mapped to the first 8% of the difficulty range.
+// After level 5, the curve accelerates via a power function so mid-game difficulty
+// arrives much earlier than a linear ramp would produce.
+function applyDifficultyCurve(rawProgress) {
+  const cutoff = 4 / (LEVEL_COUNT - 1); // raw progress at end of level 5
+  if (rawProgress <= cutoff) {
+    return rawProgress * (0.08 / cutoff);
+  }
+  const t = (rawProgress - cutoff) / (1 - cutoff);
+  return 0.08 + Math.pow(t, 0.62) * 0.92;
+}
+
 function buildLevelProfiles() {
   const rng = mulberry32(LEVEL_SEED);
   const profiles = [];
@@ -869,10 +889,10 @@ function buildLevelProfiles() {
   for (let level = 1; level <= LEVEL_COUNT; level += 1) {
     let isRespite = false;
 
-    if (level > 4 && level < LEVEL_COUNT) {
-      const mustInsert = levelsSinceRespite >= 9;
-      const canInsert = levelsSinceRespite >= 5;
-      if (mustInsert || (canInsert && rng() < 0.18 + level * 0.001)) {
+    if (level > 3 && level < LEVEL_COUNT) {
+      const mustInsert = levelsSinceRespite >= 8;
+      const canInsert = levelsSinceRespite >= 4;
+      if (mustInsert || (canInsert && rng() < 0.22 + level * 0.002)) {
         isRespite = true;
         levelsSinceRespite = 0;
       } else {
@@ -890,41 +910,42 @@ function buildLevelProfiles() {
 
 function generateLevelProfile(level, isRespite) {
   const rng = mulberry32((LEVEL_SEED ^ (level * 0x9e3779b9)) >>> 0);
-  const progress = (level - 1) / (LEVEL_COUNT - 1);
+  const rawProgress = (level - 1) / (LEVEL_COUNT - 1);
+  const progress = applyDifficultyCurve(rawProgress);
   const softenedProgress = isRespite
     ? Math.max(0, progress - 0.08 - rng() * 0.03)
     : progress;
-  const earlyPressure = Math.max(0, 1 - progress / 0.22);
+  const earlyPressure = Math.max(0, 1 - rawProgress / 0.22);
   const earlyCurveBoost = earlyPressure * (isRespite ? 0.03 : 0.085);
   const shapeProgress = clamp(softenedProgress + earlyCurveBoost, 0, 1);
   const platformCount = clamp(
     Math.round(
       3 +
-        shapeProgress * 8.5 +
-        rng() * 1.6 +
+        shapeProgress * 8.0 +
+        rng() * 1.5 +
         (progress > 0.7 ? 0.8 : 0) +
         earlyPressure * (isRespite ? 0.35 : 0.95),
     ),
     3,
-    11,
+    10,
   );
   const platformDiameter =
-    lerp(4.0, 2.55, shapeProgress) +
-    (isRespite ? 0.25 : 0) -
+    lerp(4.2, 2.55, shapeProgress) +
+    (isRespite ? 0.28 : 0) -
     earlyPressure * (isRespite ? 0.05 : 0.18);
   const gapBase =
-    lerp(4.1, 5.85, shapeProgress) -
-    (isRespite ? 0.28 : 0) +
-    earlyPressure * (isRespite ? 0.12 : 0.38);
+    lerp(3.85, 5.85, shapeProgress) -
+    (isRespite ? 0.32 : 0) +
+    earlyPressure * (isRespite ? 0.10 : 0.35);
   const gapVariance =
-    lerp(0.28, 1.25, shapeProgress) * (isRespite ? 0.72 : 1) +
-    earlyPressure * (isRespite ? 0.02 : 0.08);
+    lerp(0.22, 1.25, shapeProgress) * (isRespite ? 0.72 : 1) +
+    earlyPressure * (isRespite ? 0.02 : 0.07);
   const riseMax =
-    lerp(0.55, 1.55, shapeProgress) * (isRespite ? 0.8 : 1) +
-    earlyPressure * (isRespite ? 0.07 : 0.22);
+    lerp(0.48, 1.55, shapeProgress) * (isRespite ? 0.8 : 1) +
+    earlyPressure * (isRespite ? 0.06 : 0.20);
   const fallMax =
-    lerp(0.22, 0.85, shapeProgress) * (isRespite ? 0.82 : 1) +
-    earlyPressure * (isRespite ? 0.05 : 0.16);
+    lerp(0.18, 0.85, shapeProgress) * (isRespite ? 0.82 : 1) +
+    earlyPressure * (isRespite ? 0.04 : 0.14);
   const minY = lerp(1.9, 3.45, shapeProgress) - (isRespite ? 0.18 : 0);
   const maxY =
     lerp(3.7, 7.8, shapeProgress) -
@@ -933,6 +954,7 @@ function generateLevelProfile(level, isRespite) {
   const pattern = isRespite
     ? "plateau"
     : LEVEL_PATTERNS[Math.floor(rng() * LEVEL_PATTERNS.length)];
+  const hasWavingPlatforms = level > 5;
 
   let gapScale = 1;
   let layout = [];
@@ -954,6 +976,8 @@ function generateLevelProfile(level, isRespite) {
       rng,
       isRespite,
       earlyPressure,
+      level,
+      hasWavingPlatforms,
     });
     estimatedDrain = estimateLayoutDrain(layout);
     if (estimatedDrain <= MAX_SAFE_LEVEL_DRAIN) {
@@ -987,6 +1011,8 @@ function createLayoutCandidate(config) {
     rng,
     isRespite,
     earlyPressure,
+    level,
+    hasWavingPlatforms,
   } = config;
 
   const layout = [];
@@ -1026,6 +1052,15 @@ function createLayoutCandidate(config) {
       d: diameter,
       color: LEVEL_COLORS[(index + Math.floor(progress * 6)) % LEVEL_COLORS.length],
       isFinal: false,
+      bobPhase: ((level * 31 + index * 17) % 360) * (Math.PI / 180),
+      motionAmplitude:
+        hasWavingPlatforms && !isRespite && index > 0
+          ? 0.18 + rng() * 0.16 + Math.min(0.08, Math.max(0, level - 6) * 0.004)
+          : 0,
+      motionSpeed:
+        hasWavingPlatforms && !isRespite && index > 0
+          ? 1.7 + rng() * 0.9 + Math.min(0.45, Math.max(0, level - 6) * 0.02)
+          : 0,
     });
   }
 
@@ -1050,6 +1085,9 @@ function createLayoutCandidate(config) {
     d: finalDiameter,
     color: 0xffd166,
     isFinal: true,
+    bobPhase: ((level * 31 + platformCount * 17 + 11) % 360) * (Math.PI / 180),
+    motionAmplitude: 0,
+    motionSpeed: 0,
   });
 
   return layout;
@@ -1126,10 +1164,10 @@ function estimateLayoutDrain(layout) {
 
 function buildLevelLabel(level, progress, isRespite) {
   if (isRespite) return "BREATHER ROUTE";
-  if (level >= LEVEL_COUNT - 4) return "FINAL ASCENT";
-  if (progress < 0.2) return "OPENING ARC";
-  if (progress < 0.45) return "RISING RHYTHM";
-  if (progress < 0.72) return "TIGHTER GAPS";
+  if (level >= LEVEL_COUNT - 3) return "FINAL ASCENT";
+  if (progress < 0.12) return "OPENING ARC";
+  if (progress < 0.35) return "RISING RHYTHM";
+  if (progress < 0.65) return "TIGHTER GAPS";
   return "PRECISION RUN";
 }
 
@@ -1163,6 +1201,8 @@ function setupTestingHooks() {
         x: Number(platform.mesh.position.x.toFixed(2)),
         y: Number(platform.mesh.position.y.toFixed(2)),
         final: platform.isFinal,
+        motionAmplitude: Number(platform.motionAmplitude.toFixed(3)),
+        motionSpeed: Number(platform.motionSpeed.toFixed(3)),
       })),
     });
 
@@ -1173,6 +1213,11 @@ function setupTestingHooks() {
       updateFrame(1 / 60);
     }
     renderer.render(scene, camera);
+  };
+
+  window.setLevelForDebug = (levelNumber) => {
+    const nextLevel = clamp(Math.round(levelNumber), 1, LEVEL_COUNT);
+    buildLevel(nextLevel);
   };
 }
 
