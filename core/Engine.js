@@ -165,24 +165,58 @@ function createGround() {
  * Generic Platform Creator
  */
 function createPlatform(x, y, z, w, h, d, color) {
-  const geometry = new THREE.BoxGeometry(w, h, d);
+  // 1. Mesh Creation (Hexagonal Prism)
+  // Higher segments for a cylinder look, but 6 for a hexagon.
+  const radius = Math.max(w, d) / 2;
+  const geometry = new THREE.CylinderGeometry(radius, radius, h, 6);
   const material = new THREE.MeshStandardMaterial({
     color: color,
     emissive: color,
-    emissiveIntensity: 0.2,
+    emissiveIntensity: 0.3,
+    metalness: 0.7,
+    roughness: 0.2,
   });
+  
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  
+  // Rotate slightly to have a flat side facing the camera (Z axis)
+  // Three.js Cylinder is vertical (Y). To make it a platform, we keep it vertical.
+  // We rotate around Y to align edges.
+  mesh.rotation.y = Math.PI / 6; 
+
+  // Add wireframe edges for "Premium" look
+  const edges = new THREE.EdgesGeometry(geometry);
+  const line = new THREE.LineSegments(
+    edges,
+    new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.5 })
+  );
+  mesh.add(line);
+  
   scene.add(mesh);
 
-  // Physics Platform
+  // 2. Physics Platform (Hexagonal Convex Hull)
   const desc = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z);
   const body = world.createRigidBody(desc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2)
+  
+  // Create vertices for the hexagonal hull
+  const vertices = [];
+  const offset = Math.PI / 6; // Matching the mesh rotation
+  for (let i = 0; i < 6; i++) {
+    const angle = (i * Math.PI) / 3 + offset;
+    const vx = radius * Math.cos(angle);
+    const vz = radius * Math.sin(angle);
+    // Cylinder is along Y, so we add vertex at top and bottom
+    vertices.push(vx, -h / 2, vz);
+    vertices.push(vx, h / 2, vz);
+  }
+  
+  const colliderDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(vertices))
     .setFriction(0)
     .setRestitution(0);
+  
   world.createCollider(colliderDesc, body);
 }
 
@@ -219,7 +253,7 @@ function createPlayer() {
  * Creates a collectible Coin
  */
 function createCoin(x, y, z) {
-  const geometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
+  const geometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 6);
   const material = new THREE.MeshStandardMaterial({
     color: 0xffdd00,
     metalness: 0.9,
@@ -231,6 +265,15 @@ function createCoin(x, y, z) {
   mesh.position.set(x, y, z);
   mesh.rotation.x = Math.PI / 2;
   mesh.castShadow = true;
+
+  // Add wireframe for premium look
+  const edges = new THREE.EdgesGeometry(geometry);
+  const line = new THREE.LineSegments(
+    edges,
+    new THREE.LineBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8 })
+  );
+  mesh.add(line);
+  
   scene.add(mesh);
 
   // We'll use distance-based collection for simplicity in this template,
