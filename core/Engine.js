@@ -17,6 +17,19 @@ let coins = [];
 let coinsCollected = 0;
 let keys = {};
 let particles = [];
+let playerState = {
+  lastVelX: 0,
+  particleTimer: 0,
+  lastGrounded: true,
+  lastVelY: 0,
+  jellyUniforms: {
+    uVelocity: { value: new THREE.Vector3() },
+    uImpact: { value: 0 },
+    uTime: { value: 0 },
+    uScale: { value: new THREE.Vector3(1, 1, 1) },
+    uTilt: { value: 0 },
+  }
+};
 
 // Game Configuration (Exposed to Lua)
 const gameConfig = {
@@ -241,9 +254,47 @@ function createPlayer() {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshStandardMaterial({
     color: 0x44ff44,
-    roughness: 0.5,
+    roughness: 0.2,
     metalness: 0.8,
   });
+
+  // Inject Custom Jelly Shader Logic
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uVelocity = playerState.jellyUniforms.uVelocity;
+    shader.uniforms.uImpact = playerState.jellyUniforms.uImpact;
+    shader.uniforms.uTime = playerState.jellyUniforms.uTime;
+    shader.uniforms.uScale = playerState.jellyUniforms.uScale;
+    shader.uniforms.uTilt = playerState.jellyUniforms.uTilt;
+
+    shader.vertexShader = `
+      uniform vec3 uVelocity;
+      uniform float uImpact;
+      uniform float uTime;
+      uniform vec3 uScale;
+      uniform float uTilt;
+      ${shader.vertexShader}
+    `.replace(
+      '#include <begin_vertex>',
+      `
+      #include <begin_vertex>
+      
+      // 1. Squash and Stretch (Centered at bottom)
+      transformed.y += 0.5; // Move to pivot
+      transformed.y *= uScale.y;
+      transformed.xz *= uScale.xz;
+      transformed.y -= 0.5 * uScale.y; // Move back
+
+      // 2. Horizontal Shearing (Tilt) based on height
+      // Bottom is fixed (0.0), top is most tilted (1.0)
+      float h = (transformed.y + 0.5 * uScale.y) / uScale.y; 
+      transformed.x += h * uTilt;
+
+      // 3. Procedural Jiggle (Sine wave based on movement)
+      float jiggle = sin(uTime * 15.0 + transformed.y * 2.0) * length(uVelocity.xz) * 0.01;
+      transformed.x += jiggle * h;
+      `
+    );
+  };
   player = new THREE.Mesh(geometry, material);
   player.position.set(0, 1, 0);
   player.castShadow = true;
@@ -305,7 +356,7 @@ function createCoin(x, y, z) {
 /**
  * Creates visual particles at a position
  */
-function spawnParticles(x, y, z, color, count = 8) {
+function spawnParticles(x, y, z, color, count = 8, speedScale = 1.0) {
   for (let i = 0; i < count; i++) {
     const geometry = new THREE.SphereGeometry(0.1, 8, 8);
     const material = new THREE.MeshStandardMaterial({
@@ -319,9 +370,9 @@ function spawnParticles(x, y, z, color, count = 8) {
 
     // Random velocity
     const velocity = new THREE.Vector3(
-      (Math.random() - 0.5) * 6,
-      Math.random() * 8, // Burst upwards
-      (Math.random() - 0.5) * 4,
+      (Math.random() - 0.5) * 6 * speedScale,
+      Math.random() * 8 * speedScale, // Burst upwards
+      (Math.random() - 0.5) * 4 * speedScale,
     );
 
     scene.add(particle);
@@ -361,6 +412,8 @@ function handleInput(delta) {
       { x: velocity.x, y: gameConfig.jumpImpulse, z: velocity.z },
       true,
     );
+    // Jump Splash
+    spawnParticles(translation.x, translation.y - 0.4, translation.z, 0x44ff44, 8);
   }
 
   // 3. Variable Jump Height (Mario-style)
@@ -403,9 +456,81 @@ function animate() {
 
   // Character Logic
   const { translation: pos, hit } = handleInput(delta);
+  const isGrounded = hit !== null;
 
-  // Sync Mesh with Body
+  // --- NEW: Shader-Based Jelly Physics ---
+  const vel = playerBody.linvel();
+  playerState.jellyUniforms.uTime.value += delta;
+  
+  // 1. Detect Impact (Landing)
+  if (isGrounded && !playerState.lastGrounded) {
+    const impactSpeed = Math.abs(playerState.lastVelY || 0);
+    playerState.jellyUniforms.uImpact.value = impactSpeed;
+    
+    // Calculate count and speed scale based on impact velocity (fall height)
+    // NORMAL jump impact is ~12. We scale from there.
+    const baseCount = 6;
+    const additionalCount = Math.floor(impactSpeed * 1.5);
+    const particleCount = Math.min(baseCount + additionalCount, 40); // Cap to avoid perf hit
+    const speedScale = 0.4 + (impactSpeed / 10);
+
+    spawnParticles(
+      pos.x, 
+      pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y, // Bottom of the player
+      pos.z, 
+      0x44ff44, 
+      particleCount, 
+      speedScale
+    );
+  }
+  playerState.lastGrounded = isGrounded;
+  playerState.lastVelY = vel.y;
+
+  // 2. Calculate Squash and Stretch Targets
+  let targetScaleY = 1.0;
+  let targetScaleXZ = 1.0;
+  
+  if (!isGrounded) {
+    const stretch = Math.abs(vel.y) * 0.025;
+    targetScaleY = 1.0 + stretch;
+    targetScaleXZ = 1.0 - stretch * 0.5;
+  } else {
+    const speedFactor = Math.abs(vel.x) * 0.02;
+    targetScaleXZ = 1.0 + speedFactor;
+    targetScaleY = 1.0 - speedFactor * 0.2;
+  }
+
+  // Smooth the scale in JS (it's O(1) so it's fine) and pass to Shader
+  const stiffness = 15.0; // Shader makes it feel faster, so lower stiffness
+  playerState.jellyUniforms.uScale.value.y += (targetScaleY - playerState.jellyUniforms.uScale.value.y) * stiffness * delta;
+  playerState.jellyUniforms.uScale.value.x += (targetScaleXZ - playerState.jellyUniforms.uScale.value.x) * stiffness * delta;
+  playerState.jellyUniforms.uScale.value.z = playerState.jellyUniforms.uScale.value.x;
+
+  // 3. Calculate Tilt (Lag)
+  const targetTilt = vel.x * -0.05;
+  playerState.jellyUniforms.uTilt.value += (targetTilt - playerState.jellyUniforms.uTilt.value) * 10.0 * delta;
+
+  // 4. Update Uniform Velocity
+  playerState.jellyUniforms.uVelocity.value.set(vel.x, vel.y, vel.z);
+
+  // Sync Position
   player.position.copy(pos);
+
+  // --- Gel Drag Particles ---
+  if (isGrounded && Math.abs(vel.x) > 0.5) {
+    playerState.particleTimer += delta * Math.abs(vel.x);
+    if (playerState.particleTimer > 1.5) {
+      const soleY = pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y;
+      spawnParticles(
+        pos.x + (Math.random() - 0.5) * 0.5, 
+        soleY, 
+        pos.z + (Math.random() - 0.5) * 0.5, 
+        0x44ff44,
+        5
+      );
+      playerState.particleTimer = 0;
+    }
+  }
 
   // Platform Weight Logic
   platforms.forEach((p) => {
