@@ -163,23 +163,41 @@ function createPlayer() {
 
 function handleInput(delta) {
     const velocity = playerBody.linvel();
+    const translation = playerBody.translation();
     let moveX = 0;
+
+    // 1. Raycast Ground Detection (ensure we don't hit the player itself)
+    // Cube height is 1, so the base is at -0.5. Scale ray down from slightly above base.
+    const ray = new RAPIER.Ray({ x: translation.x, y: translation.y - 0.4, z: translation.z }, { x: 0, y: -1, z: 0 });
+    
+    // castRay(ray, maxToi, solid, groups, filter_predicate, filter_collider, filter_rigid_body)
+    // We pass 'playerBody' as the last argument to EXCLUDE IT from the raycast results.
+    const hit = world.castRay(ray, 0.2, true, null, null, null, playerBody);
+    const isGrounded = hit !== null;
 
     // Movement logic
     if (keys['KeyA'] || keys['ArrowLeft']) moveX -= PLAYER_SPEED;
     if (keys['KeyD'] || keys['ArrowRight']) moveX += PLAYER_SPEED;
 
-    // Jumping - Only jump if approximately on ground
-    if (keys['Space'] && Math.abs(velocity.y) < 0.01) {
+    // 2. Jumping System
+    // Initial Jump
+    if (keys['Space'] && isGrounded) {
         playerBody.setLinvel({ x: velocity.x, y: JUMP_IMPULSE, z: velocity.z }, true);
     }
 
+    // 3. Variable Jump Height (Mario-style)
+    // If we release space while moving upward, we cut the upward velocity
+    if (!keys['Space'] && velocity.y > 0) {
+        playerBody.setLinvel({ x: velocity.x, y: velocity.y * 0.9, z: velocity.z }, true);
+    }
+
     // Apply movement while preserving gravity's effect on Y
-    playerBody.setLinvel({ x: moveX, y: velocity.y, z: 0 }, true);
+    playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
 
     // Return current position for camera follow
-    return playerBody.translation();
+    return translation;
 }
+
 
 function updateCamera(targetPos) {
     // Smoother camera follow on X-axis and Y-axis (side scrolling)
