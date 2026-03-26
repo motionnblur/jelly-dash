@@ -44,6 +44,11 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - Custom HMR support is implemented in `core/Engine.js` using `import.meta.hot`.
 - **Cleanup**: On module reload, the previous `canvas` is removed, the `requestAnimationFrame` loop is cancelled, and window event listeners are detached to prevent memory leaks and duplicate renders.
 
+### 6. Weighted Platform System
+- **Kinematic Physics**: Platforms use `kinematicPositionBased` rigid bodies instead of static ones to allow for manual Y-axis displacement.
+- **Sinking Mechanics**: When the player stands on a platform (detected via grounded raycast), the platform sinks (`0.6` units) to simulate weight.
+- **Leaf-like Return**: Platforms smoothly return to their original height using lerp-based interpolation once cleared, mimicking floating objects.
+
 ## 📂 File Structure
 - `index.html`: Base entry point with UI overlay and CSS styles.
 - `main.js`: Minimal entry point that boots the core engine.
@@ -55,7 +60,7 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - `README.md`: User-facing instructions.
 
 ## 💡 Developer Notes for Agents
-- **Adding Platforms**: Use the `game.createPlatform(x, y, z, w, h, d, color)` in Lua. It handles both Three.js mesh creation and Rapier static body creation.
+- **Adding Platforms**: Use `game.createPlatform(x, y, z, w, h, d, color)` in Lua. This creates a **Kinematic** body that handles the sinking/weight effect automatically in the JS `animate` loop.
 - **Model Integration**: To replace the box player, import a GLTF model and sync its position with `playerBody.translation()` in the `animate` loop in `core/Engine.js`.
 - **Ground Raycast**: If you change the player scale, remember to adjust the ray start offset and length in `handleInput()` (currently hardcoded for a `1x1x1` box).
 

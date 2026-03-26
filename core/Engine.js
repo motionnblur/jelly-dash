@@ -240,7 +240,7 @@ function createPlayer() {
   // Mesh
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshStandardMaterial({
-    color: 0xffdd00,
+    color: 0x44ff44,
     roughness: 0.5,
     metalness: 0.8,
   });
