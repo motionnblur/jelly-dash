@@ -19,10 +19,9 @@ export class LuaRuntime {
     console.log("Lua Runtime initialized");
   }
 
-  mountFile(path, content) {
-    if (this.lua) {
-      this.lua.mountFile(path, content);
-    }
+  async mountFile(path, content) {
+    if (!this.lua) return;
+    await this.factory.mountFile(path, content);
   }
 
   async run(script) {

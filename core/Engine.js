@@ -104,7 +104,7 @@ async function init() {
   // Mount all Lua scripts from the scripts directory
   for (const path in luaModules) {
     const fileName = path.split("/").pop(); // e.g., "init.lua"
-    luaRuntime.mountFile(fileName, luaModules[path]);
+    await luaRuntime.mountFile(fileName, luaModules[path]);
   }
 
   // 5. Run the entry point (init.lua)
