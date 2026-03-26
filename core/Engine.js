@@ -28,6 +28,7 @@ let playerState = {
   lastVelY: 0,
   gelMass: 1.0, 
   isGameOver: false,
+  spawnLandingGrace: true,
   jellyUniforms: {
     uVelocity: { value: new THREE.Vector3() },
     uImpact: { value: 0 },
@@ -43,6 +44,9 @@ const gameConfig = {
   jumpImpulse: 12,
   gravity: -19.6,
 };
+
+const GEL_CRITICAL_THRESHOLD = 0.35;
+const GEL_GAME_OVER_THRESHOLD = 0.0;
 
 // Helper: Clean up existing renderer if it exists (for HMR)
 const existingCanvas = document.querySelector("canvas");
@@ -144,6 +148,7 @@ async function init() {
   window.addEventListener("resize", onWindowResize);
 
   // Remove Loading Screen (safely) via UIManager
+  uiManager.updateHealth(playerState.gelMass);
   uiManager.removeLoadingScreen();
 
   // Start Loop
@@ -370,7 +375,7 @@ function spawnParticles(x, y, z, color, count = 8, speedScale = 1.0) {
     playerState.gelMass -= (count * lossPerParticle);
 
     // Death Check
-    if (playerState.gelMass < 0.35 && !playerState.isGameOver) {
+    if (playerState.gelMass <= GEL_GAME_OVER_THRESHOLD && !playerState.isGameOver) {
       playerState.isGameOver = true;
       uiManager.showGameOver();
       // Freeze the player physics
@@ -380,8 +385,9 @@ function spawnParticles(x, y, z, color, count = 8, speedScale = 1.0) {
       }
     }
     
-    // Safety cap for visuals
-    playerState.gelMass = Math.max(0.3, playerState.gelMass);
+    // Keep the value in range; death should be reachable when it hits zero.
+    playerState.gelMass = Math.max(0, playerState.gelMass);
+    uiManager.updateHealth(playerState.gelMass);
   }
 
   // Calculate size based on current mass (if it's a player gel particle)
@@ -514,22 +520,26 @@ function animate() {
   if (isGrounded && !playerState.lastGrounded) {
     const impactSpeed = Math.abs(playerState.lastVelY || 0);
     playerState.jellyUniforms.uImpact.value = impactSpeed;
-    
-    // Calculate count and speed scale based on impact velocity (fall height)
-    // NORMAL jump impact is ~12. We scale from there.
-    const baseCount = 6;
-    const additionalCount = Math.floor(impactSpeed * 1.5);
-    const particleCount = Math.min(baseCount + additionalCount, 40); // Cap to avoid perf hit
-    const speedScale = 0.4 + (impactSpeed / 10);
 
-    spawnParticles(
-      pos.x, 
-      pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y, // Bottom of the player
-      pos.z, 
-      0x44ff44, 
-      particleCount, 
-      speedScale
-    );
+    if (playerState.spawnLandingGrace) {
+      playerState.spawnLandingGrace = false;
+    } else {
+      // Calculate count and speed scale based on impact velocity (fall height)
+      // NORMAL jump impact is ~12. We scale from there.
+      const baseCount = 6;
+      const additionalCount = Math.floor(impactSpeed * 1.5);
+      const particleCount = Math.min(baseCount + additionalCount, 40); // Cap to avoid perf hit
+      const speedScale = 0.4 + (impactSpeed / 10);
+
+      spawnParticles(
+        pos.x, 
+        pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y, // Bottom of the player
+        pos.z, 
+        0x44ff44, 
+        particleCount, 
+        speedScale
+      );
+    }
   }
   playerState.lastGrounded = isGrounded;
   playerState.lastVelY = vel.y;

@@ -18,23 +18,99 @@ canvas {
   left: 20px;
   right: 20px;
   pointer-events: none;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   z-index: 10;
+  gap: 20px;
 }
 
-h1 {
-  margin: 0;
+.hud-stack {
+  min-width: 280px;
+  max-width: 420px;
+}
+
+.health-panel {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(16, 22, 36, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.health-panel.is-critical {
+  animation: healthPulse 1s ease-in-out infinite;
+  border-color: rgba(255, 120, 100, 0.45);
+}
+
+.health-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.health-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  opacity: 0.85;
 }
 
-.controls {
-  margin-top: 10px;
-  font-weight: 300;
-  opacity: 0.8;
+#health-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #eaf8ff;
+}
+
+#health-value.is-critical {
+  color: #ffd1c4;
+  animation: healthShake 0.36s ease-in-out infinite;
+}
+
+.health-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+#health-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #44ff44 0%, #b5ff66 55%, #fff16a 100%);
+  box-shadow: 0 0 18px rgba(68, 255, 68, 0.35);
+  transition: width 0.18s ease, filter 0.18s ease, background 0.18s ease;
+}
+
+#health-fill[data-critical="true"] {
+  background: linear-gradient(90deg, #ff4d4d 0%, #ff8a5b 100%);
+  filter: saturate(1.1);
+  box-shadow: 0 0 18px rgba(255, 77, 77, 0.35);
+}
+
+@keyframes healthPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255, 120, 100, 0);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 18px rgba(255, 120, 100, 0.12);
+  }
+}
+
+@keyframes healthShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1px); }
+  50% { transform: translateX(1px); }
+  75% { transform: translateX(-0.5px); }
 }
 
 #coin-counter {
@@ -128,4 +204,19 @@ h1 {
 #retry-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 0 30px rgba(68, 255, 68, 0.4);
+}
+
+@media (max-width: 720px) {
+  #overlay {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hud-stack {
+    max-width: none;
+  }
+
+  #coin-counter {
+    align-self: flex-end;
+  }
 }

@@ -11,9 +11,16 @@
 <body>
     <div id="loading">INITIALIZING ENGINE...</div>
     <div id="overlay">
-        <div>
-            <h1>Side Scroller Template</h1>
-            <div class="controls">WASD / Arrows to Move • Space to Jump</div>
+        <div class="hud-stack">
+            <div class="health-panel" aria-label="Gel health">
+                <div class="health-row">
+                    <span class="health-label">GEL</span>
+                    <span id="health-value">100%</span>
+                </div>
+                <div class="health-track" aria-hidden="true">
+                    <div id="health-fill"></div>
+                </div>
+            </div>
         </div>
         <div id="coin-counter">COINS: <span id="coin-value">0</span></div>
     </div>
