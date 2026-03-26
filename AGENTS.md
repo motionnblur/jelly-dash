@@ -1,69 +1,386 @@
-# Agent Documentation: 3D Side Scroller Template
+# Agent Documentation: Gel Run 100-Level Campaign
 
-This document provides a technical overview of the project for AI agents and developers. It outlines the architecture, key systems, and design patterns used in this 3D Side Scroller template.
+This document is the implementation-level guide for AI agents and developers working on this project. It describes the current architecture, gameplay rules, level-generation math, and the constraints that matter when changing difficulty.
 
-## 🚀 Project Overview
-A performance-oriented 3D side-scrolling platformer template built with **Three.js** and **Rapier**. It features physics-based movement, variable jump heights, and smooth camera transitions.
+## Project Overview
+This is a 3D side-scrolling platformer built with **Three.js** and **Rapier**. The player is a shrinking gel character that loses health while moving and jumping. Each level is a short airborne route of hexagonal platforms ending in a distinct final hex. Touching the final hex advances to the next level. The game contains a seeded **100-level campaign** with gradual difficulty growth and intermittent easier recovery levels.
 
-## 🛠 Tech Stack
-- **Rendering**: [Three.js](https://threejs.org/) (WebGL)
-- **Physics**: [@dimforge/rapier3d-compat](https://rapier.rs/) (WASM-based 3D physics)
+## Tech Stack
+- **Rendering**: [Three.js](https://threejs.org/)
+- **Physics**: [@dimforge/rapier3d-compat](https://rapier.rs/)
 - **Bundler**: [Vite](https://vitejs.dev/)
-- **Scripting**: [Wasmoon](https://github.com/ceifa/wasmoon) (Lua 5.4 in WASM)
+- **Scripting**: [Wasmoon](https://github.com/ceifa/wasmoon)
 - **Language**: JavaScript (ESM) + Lua
 
-## 🏗 Key Systems
+## Runtime Architecture
 
-### 1. Physics Engine (Rapier)
-- **Initialization**: Async initialization via `RAPIER.init()` in `core/Engine.js`.
-- **World**: 3D world with gravity set to `-19.6` (customized for snappy platforming).
-- **Player Body**: Dynamic rigid body with locked rotations (`enabledRotations(false, false, false)`).
-- **Ground Detection**: Implemented via **Raycasting**. A ray is cast from slightly above the player's base downwards. The `playerBody` is explicitly excluded from this raycast.
-- **Dynamic Collider**: The player's collider is a **Cuboid**. It is automatically recalculated and re-added to the `playerBody` whenever the `gelMass` changes significantly (>0.01 threshold) to ensure the hit-box matches the visual size.
+### 1. Engine Ownership
+- `core/Engine.js` owns:
+  - Three.js setup
+  - Rapier world setup
+  - player movement and gel drain
+  - level generation
+  - level progression
+  - platform creation and animation
+  - deterministic test hooks
+- Lua no longer owns level layout. Lua now only initializes base world state and optional player behaviors.
 
-### 2. Player Controller & Gel Mechanics
-- **Movement**: Linear velocity application on the X-axis (`PLAYER_SPEED = 8`).
-- **Jumping**: Uses `JUMP_IMPULSE = 12`. Supports variable jump heights by dampening Y-velocity on button release.
-- **Gel Mass (Atrophy)**: The character has a `gelMass` (starts at 1.0). Spawning green particles (jumping, landing, trailing) subtracts small amounts from this mass.
-- **Visual Scaling**: The character's mesh scale is calculated as a product of its **Dynamic Squash/Stretch** and its current **Gel Mass**.
-- **Game Over**: If `gelMass` falls below **0.35**, the game simulation freezes, and the "Gel Depleted" UI appears.
+### 2. Physics Model
+- Rapier initializes asynchronously through `RAPIER.init()`.
+- Gravity defaults to `-19.6`.
+- The player uses a dynamic rigid body with rotations locked on all axes.
+- Ground detection uses a downward raycast from slightly above the player base.
+- The player collider is rebuilt when `gelMass` changes enough to keep collision size aligned with the visible body.
 
-### 3. Particle System
-- **Scaling**: Particles spawned with the color `0x44ff44` (gel color) scale their radius based on the current `playerState.gelMass`.
-- **Impact Scaling**: On landing, particle count and velocity scale dynamically based on the vertical velocity just before impact (impact velocity).
-- **Fading**: Particles use a `life` value (1.0 to 0.0) to modulate material opacity before being disposed of and removed from the scene.
+### 3. Player / Gel Rules
+- Horizontal movement is direct X velocity assignment.
+- Jumping uses `jumpImpulse = 12`.
+- Releasing jump early damps upward velocity for variable jump height.
+- `gelMass` starts each level at `1.0`.
+- Health warning starts at `35%`, but actual death happens only at `0.0`.
+- When the player dies, the run freezes and the `GEL DEPLETED` overlay appears.
 
-### 4. Camera System
-- **Smoothing**: Uses linear interpolation (Lerp) on target X and Y axes.
-- **Fixed Z**: Camera is positioned at `Z: 12` looking towards `Z: 0`.
+### 4. Drain Economy
+- Jump drain is explicit and deterministic:
+  - `JUMP_GEL_COST = 0.021`
+- Walking drain is distance-based:
+  - `WALK_GEL_COST = 0.01`
+  - one walking drain event fires every `WALK_STEP_DISTANCE = 2.35` world units while grounded and moving
+- Landing particles are cosmetic feedback and currently do not directly drain health.
+- Level generation is tuned around a target maximum expected level drain:
+  - `MAX_SAFE_LEVEL_DRAIN = 0.68`
 
-### 5. Lua Scripting System
-- **Runtime**: Initialized in `core/LuaRuntime.js` using `wasmoon`.
-- **Interop**: JavaScript objects are exposed to Lua.
-    - `config`: Table containing `playerSpeed`, `jumpImpulse`, and `gravity`.
-    - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)`, `createGround()`, `spawnPlayer(x,y,z)`, `setGravity(y)`, `isKeyDown(code)`, `applyImpulse(x,y,z)`, and `getVelocity()`.
-- **Hooks**: `onUpdate(delta)`: Optional global Lua function called every frame.
+This is the main balancing invariant: a generated route should usually consume well under full gel if the player follows the intended line with a small error margin.
 
-### 6. Weighted Platform System
-- **Kinematic Physics**: Platforms use `kinematicPositionBased` rigid bodies to allow for manual displacement.
-- **Sinking Mechanics**: Platforms sink (`0.6` units) when the player stands on them (detected via grounded raycast hits).
-- **Leaf-like Return**: Platforms smoothly return to their original height using lerp once cleared.
+### 5. Platform Model
+- All route platforms are kinematic hexagonal prisms.
+- Platforms sink slightly while stepped on and lerp back when cleared.
+- The final platform is visually distinct:
+  - gold material
+  - ring/beacon decoration
+  - lighter sink amount
+  - gentle bobbing motion
+- If the grounded raycast hits the final platform, the next level is queued.
 
-## 📂 File Structure
-- `index.html`: Base entry point with UI overlay, CSS styles, and **Game Over** screen.
-- `main.js`: Minimal entry point that boots the core engine.
-- `core/`: Core engine functionality.
-    - `Engine.js`: Main logic for rendering, physics, gel mechanics, and game loop.
-    - `LuaRuntime.js`: Wrapper for the Wasmoon Lua VM.
-- `ui/`: UI components and styling.
-    - `UIManager.js`: Handles coin updates, loading screen, and game-over transitions.
-- `scripts/`: Directory for Lua game scripts (e.g., `init.lua`).
-- `package.json`: Vite configuration and dependency management.
+### 6. Level Flow
+- The game contains `LEVEL_COUNT = 100`.
+- Each level is generated from a seeded profile at startup.
+- Entering the final hex starts a short transition, then builds the next level.
+- Every new level resets:
+  - `gelMass` to `1.0`
+  - player transform and velocity
+  - jelly animation state
+  - particle state
+- If the player falls below `y = -10`, the current level restarts instead of leaving the player in an endless fall.
+- Level 100 completion shows a campaign-complete overlay.
 
-## 💡 Developer Notes for Agents
-- **Adding Platforms**: Use `game.createPlatform(x, y, z, w, h, d, color)` in Lua.
-- **Gel Scaling**: Any new particle emitter that should affect the player's mass should use the `0x44ff44` color in `spawnParticles`.
-- **Collider Sync**: Don't manually resize the player body; update `playerState.gelMass` and let the collision synchronization handle the recalculation.
+## Level Generation System
+
+### High-Level Intent
+The generator is not purely random. It is a seeded, bounded difficulty system that tries to do four things at once:
+
+1. increase route complexity over 100 levels
+2. keep every generated route reachable with the current movement model
+3. ensure the gel budget stays survivable
+4. insert easier "breather" levels intermittently so the campaign rhythm does not become monotonically harder
+
+### Seed Model
+- Global campaign seed:
+  - `LEVEL_SEED = 0x5f3759df`
+- Per-level RNG:
+  - `mulberry32((LEVEL_SEED ^ (level * 0x9e3779b9)) >>> 0)`
+
+This means level generation is deterministic for a given code version. If an agent changes the math, the whole 100-level sequence can change even with the same seed.
+
+### Difficulty Progress Scalar
+Each level computes:
+
+```js
+progress = (level - 1) / (LEVEL_COUNT - 1)
+```
+
+That gives a normalized scalar from `0` to `1`.
+
+This scalar drives most difficulty parameters through linear interpolation:
+- platform count
+- base gap size
+- gap variance
+- vertical rise allowance
+- vertical fall allowance
+- minimum route height
+- maximum route height
+- platform diameter
+
+There is also an explicit **early-game pressure boost** layered on top of this.
+
+For roughly the first 22% of the campaign:
+
+```js
+earlyPressure = max(0, 1 - progress / 0.22)
+```
+
+That scalar is used to make the opening levels harder than a plain linear curve would make them. The goal is to avoid a tutorial-like first 10 to 20 levels.
+
+In practice, `earlyPressure` does all of the following:
+- increases platform count
+- reduces platform diameter slightly
+- increases base gap size
+- increases gap variance slightly
+- increases the final jump distance a little
+- increases early vertical rise/fall allowance
+- adds a small alternating vertical cadence kick so the opening routes climb and dip instead of reading as flat horizontal chains
+
+Respite levels still receive a reduced version of this boost, but much smaller than normal levels.
+
+### Respite Level Insertion
+The game periodically inserts easier levels. These are not every Nth level exactly.
+
+The logic:
+- track `levelsSinceRespite`
+- force a respite if there have been 9 non-respite levels in a row
+- allow a respite after 5 levels with a probability:
+
+```js
+0.18 + level * 0.001
+```
+
+This creates:
+- guaranteed spacing ceiling so the player never goes too long without relief
+- enough randomness that the easier levels do not feel scheduled
+
+When a level is marked as respite:
+- its effective difficulty scalar is reduced:
+
+```js
+softenedProgress = max(0, progress - 0.08 - rng() * 0.03)
+```
+
+- platforms become slightly larger
+- gaps become shorter
+- gap variance shrinks
+- height swings shrink
+- the route pattern becomes `"plateau"` instead of one of the harder route families
+
+### Route Size / Shape Parameters
+For each level profile, the generator computes:
+
+```js
+platformCount = clamp(round(3 + softenedProgress * 8.5 + rng() * 1.6 + endgameBonus), 3, 11)
+platformDiameter = lerp(4.0, 2.55, softenedProgress) + respiteBonus
+gapBase = lerp(4.1, 5.85, softenedProgress) - respiteReduction
+gapVariance = lerp(0.28, 1.25, softenedProgress) * respiteScale
+riseMax = lerp(0.55, 1.55, softenedProgress) * respiteScale
+fallMax = lerp(0.22, 0.85, softenedProgress) * respiteScale
+minY = lerp(1.9, 3.45, softenedProgress) - respiteOffset
+maxY = lerp(3.7, 7.8, softenedProgress) - respiteOffset
+```
+
+Interpretation:
+- later levels use more platforms
+- later levels use smaller platforms
+- later levels widen gaps
+- later levels allow stronger vertical shape changes
+- later levels place the route higher in the frame
+- the first fifth of the campaign gets an extra difficulty bump from `earlyPressure`, so early routes are denser than a simple linear interpolation would produce
+
+### Route Patterns
+Non-respite levels choose one of these pattern families:
+- `glide`
+- `pulse`
+- `switchback`
+- `crest`
+
+Respite levels use:
+- `plateau`
+
+These are not separate level templates. They are different vertical delta functions applied while building the chain.
+
+#### `glide`
+- mostly rising path
+- smooth and readable
+- occasional flatter step
+
+#### `pulse`
+- alternating rise / dip rhythm
+- introduces cadence changes without large brutality spikes
+
+#### `switchback`
+- more aggressive alternation between upward and downward adjustments
+- creates more timing changes
+
+#### `crest`
+- route rises through the early section, then softens or falls slightly late
+- good for endgame silhouettes without forcing infinite climb
+
+#### `plateau`
+- almost flat
+- small, gentle upward drift
+- designed to recover pacing and preserve player confidence
+
+### Platform Placement Math
+Each route starts from:
+
+```js
+x = 4.6
+y = 1.9
+```
+
+For each non-final platform:
+
+1. sample horizontal gap noise
+
+```js
+gapNoise = (rng() * 2 - 1) * gapVariance
+gap = max(3.45, (gapBase + gapNoise) * gapScale)
+```
+
+2. advance x:
+- first step uses `gap * 0.96`
+- later steps use full `gap`
+
+3. compute platform diameter with small random wobble:
+
+```js
+diameter = clamp(platformDiameter + randomOffset, 2.45, 4.6)
+```
+
+4. update `y` using the selected route pattern
+
+5. append platform definition
+
+The final platform is then added using:
+- a slightly larger final gap
+- a mostly similar height to the last route platform
+- a slightly larger diameter, but not as generous as the first pass of the campaign generator
+- fixed gold color and `isFinal = true`
+
+For early levels, the final gap also receives a small extra push from `earlyPressure`, so the opening stages require more commitment instead of feeling like extended warm-up rooms.
+
+### Survival Budget Math
+The generator estimates whether a layout is safe before finalizing it.
+
+The estimate is:
+
+```js
+routeDistance = sum(platform[i].x - previousX)
+jumpCost = layout.length * JUMP_GEL_COST
+walkCost = routeDistance * (WALK_GEL_COST / WALK_STEP_DISTANCE)
+estimatedDrain = jumpCost + walkCost
+```
+
+Important nuance:
+- `layout.length` includes the final platform, so the estimator assumes one jump per platform segment.
+- this is intentionally conservative enough to keep routes survivable without simulating full player trajectories
+
+If:
+
+```js
+estimatedDrain > MAX_SAFE_LEVEL_DRAIN
+```
+
+the generator reduces horizontal spread:
+
+```js
+gapScale *= 0.92
+```
+
+and regenerates the layout, up to 6 attempts.
+
+This is the main safety valve that keeps late-game routes from becoming mathematically impossible under the drain system.
+
+### What Makes Later Levels Harder
+Difficulty growth is mostly from four sources:
+- more jumps
+- more walking distance between jumps
+- smaller landing surfaces
+- bigger and less predictable vertical shape changes
+
+The generator does **not** currently add moving hazards, enemies, or fake branch routes. Difficulty is still purely traversal and resource pressure.
+
+## Deterministic Test Hooks
+`core/Engine.js` exposes:
+
+- `window.render_game_to_text()`
+- `window.advanceTime(ms)`
+
+Use these when validating layout generation or progression through Playwright or another browser automation loop.
+
+`render_game_to_text()` returns:
+- current mode
+- coordinate system note
+- current level index / total
+- route label
+- whether the level is a respite
+- player position / velocity / gel mass
+- all current platform positions and final-flag state
+
+## File Structure
+- `index.html`
+  - HUD shell
+  - loading overlay
+  - game-over overlay
+  - campaign-complete overlay
+- `main.js`
+  - entry point
+- `core/Engine.js`
+  - rendering, physics, input, gel logic, generator, progression, test hooks
+- `core/LuaRuntime.js`
+  - Wasmoon wrapper
+- `ui/UIManager.js`
+  - HUD updates and overlay visibility
+- `ui/styles.css`
+  - HUD / overlay styling
+- `scripts/world.lua`
+  - base-world creation only
+- `scripts/player.lua`
+  - optional scripted player abilities, currently dash
+- `scripts/config.lua`
+  - exposes movement constants into Lua
+
+## Developer Notes For Agents
+
+### If You Want To Rebalance Difficulty
+Change these first in `core/Engine.js`:
+- `JUMP_GEL_COST`
+- `WALK_GEL_COST`
+- `WALK_STEP_DISTANCE`
+- `MAX_SAFE_LEVEL_DRAIN`
+- the `lerp(...)` endpoints in `generateLevelProfile()`
+
+Rule of thumb:
+- if players die too often late, reduce `gapBase`, `gapVariance`, or `platformCount`
+- if levels are too easy but feel structurally good, raise drain slightly before increasing geometry brutality
+- if the campaign feels repetitive, change the route-pattern deltas before changing the whole difficulty curve
+
+### If You Want To Make Respite Levels More Frequent
+Adjust the respite insertion logic in `buildLevelProfiles()`:
+- lower the minimum spacing from 4
+- lower the forced spacing from 8
+- raise the respite probability coefficient
+
+### If You Want Hand-Authored Milestone Levels
+The cleanest approach is:
+1. keep the generator for most levels
+2. override specific indices like 10, 25, 50, 75, 100 with custom layouts
+3. still run the same drain estimate against those layouts
+
+### If You Add New Gel-Draining Effects
+- Prefer explicit drain through `drainGel(amount)` or `spawnParticles(..., { drainGelTotal })`
+- Do not hide health costs in unrelated visual-only effects unless the mechanic is meant to be systemic
+- Remember that new drains can invalidate the current level-budget math
+
+### If You Change Player Scale Rules
+- do not manually resize the rigid body elsewhere
+- update `playerState.gelMass` and let collider synchronization rebuild the collider
+
+### If You Debug Progression
+Look at:
+- `buildLevelProfiles()`
+- `generateLevelProfile()`
+- `createLayoutCandidate()`
+- `estimateLayoutDrain()`
+- `startLevelTransition()`
+- `queueLevelRestart()`
 
 ---
-*Last Updated: March 2026 (Updated with Gel Mechanics)*
+*Last Updated: March 26, 2026 (100-level campaign + generator math documented)*

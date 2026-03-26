@@ -2,32 +2,57 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
 import { uiManager } from "../ui/UIManager";
-// Automatically load all Lua files in the scripts folder
+
 const luaModules = import.meta.glob("../scripts/*.lua", {
   query: "?raw",
   import: "default",
   eager: true,
 });
 
-// Main Engine Components
-let scene, camera, renderer, world, clock;
-let player, playerBody, playerCollider;
-let platforms = [];
-let coins = [];
-let coinsCollected = 0;
-let keys = {};
-let particles = [];
+let scene;
+let camera;
+let renderer;
+let world;
+let clock;
+let player;
+let playerBody;
+let playerCollider;
+let animationId;
 
-const SKY_COLOR = 0xb9ddff;
-const FOG_COLOR = 0xd6ecff;
+const platforms = [];
+const particles = [];
+const keys = {};
 
-let playerState = {
-  lastVelX: 0,
-  particleTimer: 0,
+const SKY_COLOR = 0xf3f7ff;
+const FOG_COLOR = 0xf9fbff;
+const LEVEL_COUNT = 100;
+const LEVEL_SEED = 0x5f3759df;
+const PLATFORM_HEIGHT = 0.5;
+const PLAYER_SPAWN = { x: 0, y: 5, z: 0 };
+const MAX_SAFE_LEVEL_DRAIN = 0.68;
+const JUMP_GEL_COST = 0.021;
+const WALK_GEL_COST = 0.01;
+const WALK_STEP_DISTANCE = 2.35;
+const GEL_CRITICAL_THRESHOLD = 0.35;
+const GEL_GAME_OVER_THRESHOLD = 0.0;
+
+const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
+const LEVEL_COLORS = [
+  0x70e1ff,
+  0xff8a5b,
+  0x77ff88,
+  0xff5f9d,
+  0x8b7dff,
+  0xffd166,
+];
+
+const playerState = {
+  gelMass: 1.0,
+  isGameOver: false,
   lastGrounded: true,
   lastVelY: 0,
-  gelMass: 1.0, 
-  isGameOver: false,
+  particleTimer: 0,
+  walkDistanceAccumulator: 0,
   spawnLandingGrace: true,
   jellyUniforms: {
     uVelocity: { value: new THREE.Vector3() },
@@ -35,31 +60,40 @@ let playerState = {
     uTime: { value: 0 },
     uScale: { value: new THREE.Vector3(1, 1, 1) },
     uTilt: { value: 0 },
-  }
+  },
 };
 
-// Game Configuration (Exposed to Lua)
+const levelState = {
+  currentLevel: 1,
+  totalLevels: LEVEL_COUNT,
+  profiles: [],
+  currentProfile: null,
+  finalPlatform: null,
+  transitionTimer: 0,
+  pendingLevel: null,
+  isTransitioning: false,
+  isGameComplete: false,
+};
+
+const gameplayState = {
+  manualStepMode: false,
+};
+
 const gameConfig = {
   playerSpeed: 8,
   jumpImpulse: 12,
   gravity: -19.6,
 };
 
-const GEL_CRITICAL_THRESHOLD = 0.35;
-const GEL_GAME_OVER_THRESHOLD = 0.0;
-
-// Helper: Clean up existing renderer if it exists (for HMR)
 const existingCanvas = document.querySelector("canvas");
 if (existingCanvas) {
   existingCanvas.remove();
 }
 
 async function init() {
-  // 1. Initialize Physics Engine (Rapier)
   await RAPIER.init();
   world = new RAPIER.World({ x: 0, y: gameConfig.gravity, z: 0 });
 
-  // 2. Three.js Scene Setup (MUST happen before Lua runs world-creation code)
   scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY_COLOR);
   scene.fog = new THREE.Fog(FOG_COLOR, 18, 95);
@@ -83,39 +117,36 @@ async function init() {
 
   clock = new THREE.Clock();
 
-  // 3. Lighting (Premium Feel)
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9e5ff, 1.15));
 
-  const sun = new THREE.DirectionalLight(0xffddaa, 1.2);
-  sun.position.set(20, 40, 20);
+  const sun = new THREE.DirectionalLight(0xfff2d7, 1.4);
+  sun.position.set(18, 32, 18);
   sun.castShadow = true;
   sun.shadow.mapSize.width = 2048;
   sun.shadow.mapSize.height = 2048;
-  sun.shadow.camera.left = -50;
-  sun.shadow.camera.right = 50;
-  sun.shadow.camera.top = 50;
-  sun.shadow.camera.bottom = -50;
+  sun.shadow.camera.left = -40;
+  sun.shadow.camera.right = 40;
+  sun.shadow.camera.top = 40;
+  sun.shadow.camera.bottom = -40;
   scene.add(sun);
 
-  const pointLight = new THREE.PointLight(0x00ccff, 1, 30);
-  pointLight.position.set(0, 5, 10);
-  scene.add(pointLight);
+  const rimLight = new THREE.PointLight(0x7dd3fc, 0.9, 30);
+  rimLight.position.set(-10, 7, 12);
+  scene.add(rimLight);
 
-  // 4. Initialize Lua Scripting
   await luaRuntime.init({
     config: gameConfig,
     game: {
+      createGround: () => createGround(),
       createPlatform: (x, y, z, w, h, d, color) =>
         createPlatform(x, y, z, w, h, d, color),
-      createGround: () => createGround(),
       spawnPlayer: (x, y, z) => {
-        if (!player) createPlayer(); // Use 'player' mesh as existence check
+        if (!player) createPlayer();
         playerBody.setTranslation({ x, y, z }, true);
       },
       setGravity: (y) => {
         gameConfig.gravity = y;
-        world.gravity = { x: 0, y: y, z: 0 };
+        world.gravity = { x: 0, y, z: 0 };
       },
       isKeyDown: (code) => !!keys[code],
       applyImpulse: (x, y, z) => {
@@ -123,154 +154,168 @@ async function init() {
       },
       getVelocity: () => {
         if (!playerBody) return { x: 0, y: 0, z: 0 };
-        const v = playerBody.linvel();
-        return { x: v.x, y: v.y, z: v.z }; // Plain object for Lua
+        const velocity = playerBody.linvel();
+        return { x: velocity.x, y: velocity.y, z: velocity.z };
       },
-      createCoin: (x, y, z) => createCoin(x, y, z),
     },
   });
 
-  // Mount all Lua scripts from the scripts directory
   for (const path in luaModules) {
-    const fileName = path.split("/").pop(); // e.g., "init.lua"
+    const fileName = path.split("/").pop();
     await luaRuntime.mountFile(fileName, luaModules[path]);
   }
 
-  // 5. Run the entry point (init.lua)
   await luaRuntime.run('require("init")');
 
-  // All world creation (Ground, Platforms, Player) is now handled by Lua
-  // See scripts/init.lua
+  levelState.profiles = buildLevelProfiles();
+  buildLevel(1);
+  setupTestingHooks();
 
-  // Event Listeners
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("resize", onWindowResize);
 
-  // Remove Loading Screen (safely) via UIManager
-  uiManager.updateHealth(playerState.gelMass);
   uiManager.removeLoadingScreen();
-
-  // Start Loop
   animate();
 }
 
-function onKeyDown(e) {
-  keys[e.code] = true;
-}
-function onKeyUp(e) {
-  keys[e.code] = false;
+function onKeyDown(event) {
+  keys[event.code] = true;
 }
 
-/**
- * Creates a static ground
- */
+function onKeyUp(event) {
+  keys[event.code] = false;
+}
+
 function createGround() {
-  const geometry = new THREE.BoxGeometry(200, 2, 20);
+  const backdrop = new THREE.Mesh(
+    new THREE.BoxGeometry(220, 1.2, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xefede6,
+      roughness: 0.95,
+      metalness: 0.02,
+    }),
+  );
+  backdrop.position.set(34, -2.25, 0);
+  backdrop.receiveShadow = true;
+  scene.add(backdrop);
+
+  const geometry = new THREE.BoxGeometry(11, 2, 18);
   const material = new THREE.MeshStandardMaterial({
-    color: 0x1a1a2e,
-    roughness: 0.8,
-    metalness: 0.2,
+    color: 0xf9fbff,
+    roughness: 0.42,
+    metalness: 0.04,
   });
   const groundMesh = new THREE.Mesh(geometry, material);
+  groundMesh.position.x = 0.5;
   groundMesh.position.y = -1;
   groundMesh.receiveShadow = true;
   scene.add(groundMesh);
 
-  // Physics Ground
-  const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0);
+  const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0.5, -1, 0);
   const rigidBody = world.createRigidBody(groundDesc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(100, 1, 10)
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(5.5, 1, 9)
     .setFriction(0)
     .setRestitution(0);
   world.createCollider(colliderDesc, rigidBody);
 }
 
-/**
- * Generic Platform Creator
- */
-function createPlatform(x, y, z, w, h, d, color) {
-  // 1. Mesh Creation (Hexagonal Prism)
+function createPlatform(x, y, z, w, h, d, color, options = {}) {
   const radius = Math.max(w, d) / 2;
   const geometry = new THREE.CylinderGeometry(radius, radius, h, 6);
   const material = new THREE.MeshStandardMaterial({
-    color: color,
-    emissive: color,
-    emissiveIntensity: 0.3,
-    metalness: 0.7,
-    roughness: 0.2,
+    color,
+    emissive: options.isFinal ? 0xffd166 : color,
+    emissiveIntensity: options.isFinal ? 0.55 : 0.24,
+    metalness: options.isFinal ? 0.62 : 0.35,
+    roughness: options.isFinal ? 0.18 : 0.26,
   });
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
-  mesh.castShadow = true;
+  mesh.rotation.y = Math.PI / 6;
+  mesh.castShadow = !options.isFinal;
   mesh.receiveShadow = true;
 
-  mesh.rotation.y = Math.PI / 6;
-
-  const edges = new THREE.EdgesGeometry(geometry);
-  const line = new THREE.LineSegments(
-    edges,
+  const rim = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geometry),
     new THREE.LineBasicMaterial({
-      color: color,
+      color: options.isFinal ? 0xfff2b1 : 0xffffff,
       transparent: true,
-      opacity: 0.5,
+      opacity: options.isFinal ? 0.65 : 0.18,
     }),
   );
-  mesh.add(line);
+  mesh.add(rim);
+
+  if (options.isFinal) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 0.72, 0.08, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfff0a8, transparent: true, opacity: 0.9 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = h * 0.65;
+    mesh.add(ring);
+
+    const beacon = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.18, 0),
+      new THREE.MeshBasicMaterial({ color: 0xfff7d1 }),
+    );
+    beacon.position.y = h * 1.55;
+    mesh.add(beacon);
+  }
 
   scene.add(mesh);
 
-  // 2. Physics Platform (Kinematic for the "weight" effect)
-  const desc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
-    x,
-    y,
-    z,
+  const body = world.createRigidBody(
+    RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z),
   );
-  const body = world.createRigidBody(desc);
 
   const vertices = [];
   const offset = Math.PI / 6;
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * Math.PI) / 3 + offset;
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (index * Math.PI) / 3 + offset;
     const vx = radius * Math.cos(angle);
     const vz = radius * Math.sin(angle);
     vertices.push(vx, -h / 2, vz);
     vertices.push(vx, h / 2, vz);
   }
 
-  const colliderDesc = RAPIER.ColliderDesc.convexHull(
-    new Float32Array(vertices),
-  )
-    .setFriction(0)
-    .setRestitution(0);
+  const collider = world.createCollider(
+    RAPIER.ColliderDesc.convexHull(new Float32Array(vertices))
+      .setFriction(0)
+      .setRestitution(0),
+    body,
+  );
 
-  const collider = world.createCollider(colliderDesc, body);
-
-  // Store for weighted behavior
-  platforms.push({
+  const platform = {
     mesh,
     body,
     collider,
     originalY: y,
     currentY: y,
-    isOccupied: false,
-  });
+    bobPhase: Math.random() * Math.PI * 2,
+    isFinal: !!options.isFinal,
+    definition: options.definition ?? null,
+  };
+
+  platforms.push(platform);
+  if (platform.isFinal) {
+    levelState.finalPlatform = platform;
+  }
+
+  return platform;
 }
 
-/**
- * Creates the Player character
- */
 function createPlayer() {
-  // Mesh
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshStandardMaterial({
-    color: 0x44ff44,
-    roughness: 0.2,
-    metalness: 0.8,
+    color: 0x5cff78,
+    emissive: 0x2be866,
+    emissiveIntensity: 0.22,
+    roughness: 0.18,
+    metalness: 0.65,
   });
 
-  // Inject Custom Jelly Shader Logic
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uVelocity = playerState.jellyUniforms.uVelocity;
     shader.uniforms.uImpact = playerState.jellyUniforms.uImpact;
@@ -286,237 +331,410 @@ function createPlayer() {
       uniform float uTilt;
       ${shader.vertexShader}
     `.replace(
-      '#include <begin_vertex>',
+      "#include <begin_vertex>",
       `
       #include <begin_vertex>
-      
-      // 1. Squash and Stretch (Centered at bottom)
-      transformed.y += 0.5; // Move to pivot
+
+      transformed.y += 0.5;
       transformed.y *= uScale.y;
       transformed.xz *= uScale.xz;
-      transformed.y -= 0.5 * uScale.y; // Move back
+      transformed.y -= 0.5 * uScale.y;
 
-      // 2. Horizontal Shearing (Tilt) based on height
-      // Bottom is fixed (0.0), top is most tilted (1.0)
-      float h = (transformed.y + 0.5 * uScale.y) / uScale.y; 
+      float h = (transformed.y + 0.5 * uScale.y) / uScale.y;
       transformed.x += h * uTilt;
 
-      // 3. Procedural Jiggle (Sine wave based on movement)
       float jiggle = sin(uTime * 15.0 + transformed.y * 2.0) * length(uVelocity.xz) * 0.01;
       transformed.x += jiggle * h;
-      `
+      `,
     );
   };
+
   player = new THREE.Mesh(geometry, material);
-  player.position.set(0, 1, 0);
+  player.position.set(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z);
   player.castShadow = true;
   scene.add(player);
 
-  // Rigid Body
   const playerDesc = RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(0, 5, 0)
+    .setTranslation(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z)
     .setCanSleep(false)
-    .enabledRotations(false, false, false); // Rotation locked for typical platformers
+    .enabledRotations(false, false, false);
 
   playerBody = world.createRigidBody(playerDesc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
-    .setFriction(0)
-    .setRestitution(0);
-  playerCollider = world.createCollider(colliderDesc, playerBody);
-}
-
-/**
- * Creates a collectible Coin
- */
-function createCoin(x, y, z) {
-  const geometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 6);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xffdd00,
-    metalness: 0.9,
-    roughness: 0.1,
-    emissive: 0xffaa00,
-    emissiveIntensity: 0.5,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(x, y, z);
-  mesh.rotation.x = Math.PI / 2;
-  mesh.castShadow = true;
-
-  // Add wireframe for premium look
-  const edges = new THREE.EdgesGeometry(geometry);
-  const line = new THREE.LineSegments(
-    edges,
-    new THREE.LineBasicMaterial({
-      color: 0xffaa00,
-      transparent: true,
-      opacity: 0.8,
-    }),
+  playerCollider = world.createCollider(
+    RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setFriction(0).setRestitution(0),
+    playerBody,
   );
-  mesh.add(line);
-
-  scene.add(mesh);
-
-  // We'll use distance-based collection for simplicity in this template,
-  // but we store it in an array for the animate loop to check.
-  coins.push({
-    mesh: mesh,
-    collected: false,
-    position: { x, y, z },
-  });
 }
 
-/**
- * Creates visual particles at a position
- */
-function spawnParticles(x, y, z, color, count = 8, speedScale = 1.0) {
-  // Gel Loss Mechanic: Green particles represent lost mass
-  if (color === 0x44ff44) {
-    const lossPerParticle = 0.003; 
-    playerState.gelMass -= (count * lossPerParticle);
-
-    // Death Check
-    if (playerState.gelMass <= GEL_GAME_OVER_THRESHOLD && !playerState.isGameOver) {
-      playerState.isGameOver = true;
-      uiManager.showGameOver();
-      // Freeze the player physics
-      if (playerBody) {
-        playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      }
-    }
-    
-    // Keep the value in range; death should be reachable when it hits zero.
-    playerState.gelMass = Math.max(0, playerState.gelMass);
-    uiManager.updateHealth(playerState.gelMass);
+function drainGel(amount) {
+  if (playerState.isGameOver || levelState.isTransitioning || levelState.isGameComplete) {
+    return;
   }
 
-  // Calculate size based on current mass (if it's a player gel particle)
-  const particleSize = 0.1 * (color === 0x44ff44 ? playerState.gelMass : 1.0);
+  playerState.gelMass = Math.max(0, playerState.gelMass - amount);
+  uiManager.updateHealth(playerState.gelMass);
 
-  for (let i = 0; i < count; i++) {
+  if (playerState.gelMass <= GEL_GAME_OVER_THRESHOLD) {
+    playerState.isGameOver = true;
+    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    uiManager.showGameOver();
+  }
+}
+
+function spawnParticles(
+  x,
+  y,
+  z,
+  color,
+  count = 8,
+  speedScale = 1.0,
+  options = {},
+) {
+  const drainAmount =
+    color === 0x44ff44 && options.drainGelTotal
+      ? options.drainGelTotal
+      : 0;
+
+  if (drainAmount > 0) {
+    drainGel(drainAmount);
+  }
+
+  const particleScale =
+    color === 0x44ff44 ? Math.max(playerState.gelMass, 0.45) : 1.0;
+  const particleSize = 0.08 * particleScale;
+
+  for (let index = 0; index < count; index += 1) {
     const geometry = new THREE.SphereGeometry(particleSize, 8, 8);
     const material = new THREE.MeshStandardMaterial({
-      color: color,
+      color,
       emissive: color,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.45,
       transparent: true,
     });
     const particle = new THREE.Mesh(geometry, material);
     particle.position.set(x, y, z);
 
-    // Random velocity
     const velocity = new THREE.Vector3(
-      (Math.random() - 0.5) * 6 * speedScale,
-      Math.random() * 8 * speedScale, // Burst upwards
-      (Math.random() - 0.5) * 4 * speedScale,
+      (Math.random() - 0.5) * 5.5 * speedScale,
+      Math.random() * 6.5 * speedScale,
+      (Math.random() - 0.5) * 2.5 * speedScale,
     );
 
     scene.add(particle);
     particles.push({
       mesh: particle,
-      velocity: velocity,
-      life: 1.0, // Seconds
+      velocity,
+      life: 1.0,
     });
   }
 }
 
-function handleInput(delta) {
+function syncPlayerCollider(force = false) {
+  const currentMass = playerState.gelMass;
+  if (
+    !playerCollider ||
+    force ||
+    !playerState._lastColliderMass ||
+    Math.abs(playerState._lastColliderMass - currentMass) > 0.01
+  ) {
+    if (playerCollider) {
+      world.removeCollider(playerCollider, false);
+    }
+    const halfSize = 0.5 * currentMass;
+    playerCollider = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(halfSize, halfSize, halfSize)
+        .setFriction(0)
+        .setRestitution(0),
+      playerBody,
+    );
+    playerState._lastColliderMass = currentMass;
+  }
+}
+
+function clearPlatforms() {
+  for (const platform of platforms) {
+    scene.remove(platform.mesh);
+    world.removeRigidBody(platform.body);
+  }
+  platforms.length = 0;
+  levelState.finalPlatform = null;
+}
+
+function clearParticles() {
+  for (const particle of particles) {
+    scene.remove(particle.mesh);
+    particle.mesh.geometry.dispose();
+    particle.mesh.material.dispose();
+  }
+  particles.length = 0;
+}
+
+function resetPlayerForLevel() {
+  playerState.gelMass = 1.0;
+  playerState.isGameOver = false;
+  playerState.lastGrounded = true;
+  playerState.lastVelY = 0;
+  playerState.particleTimer = 0;
+  playerState.walkDistanceAccumulator = 0;
+  playerState.spawnLandingGrace = true;
+  playerState.jellyUniforms.uVelocity.value.set(0, 0, 0);
+  playerState.jellyUniforms.uImpact.value = 0;
+  playerState.jellyUniforms.uTime.value = 0;
+  playerState.jellyUniforms.uScale.value.set(1, 1, 1);
+  playerState.jellyUniforms.uTilt.value = 0;
+  playerState._lastColliderMass = null;
+
+  if (playerBody) {
+    playerBody.setTranslation(PLAYER_SPAWN, true);
+    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    syncPlayerCollider(true);
+  }
+
+  if (player) {
+    player.position.set(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z);
+  }
+
+  camera.position.set(0, 5, 12);
+  camera.lookAt(0, 2, 0);
+  uiManager.hideGameOver();
+  uiManager.hideGameComplete();
+  uiManager.updateHealth(playerState.gelMass);
+}
+
+function buildLevel(levelNumber) {
+  const profile = levelState.profiles[levelNumber - 1];
+  if (!profile) {
+    return;
+  }
+
+  clearPlatforms();
+  clearParticles();
+
+  levelState.currentLevel = levelNumber;
+  levelState.currentProfile = profile;
+  levelState.isTransitioning = false;
+  levelState.transitionTimer = 0;
+  levelState.pendingLevel = null;
+  levelState.isGameComplete = false;
+
+  for (const definition of profile.layout) {
+    createPlatform(
+      definition.x,
+      definition.y,
+      definition.z,
+      definition.w,
+      definition.h,
+      definition.d,
+      definition.color,
+      {
+        isFinal: definition.isFinal,
+        definition,
+      },
+    );
+  }
+
+  resetPlayerForLevel();
+  uiManager.updateLevel(
+    profile.level,
+    LEVEL_COUNT,
+    profile.isRespite,
+    profile.label,
+  );
+}
+
+function startLevelTransition() {
+  if (
+    levelState.isTransitioning ||
+    playerState.isGameOver ||
+    levelState.isGameComplete
+  ) {
+    return;
+  }
+
+  const nextLevel = levelState.currentLevel + 1;
+  levelState.isTransitioning = true;
+  levelState.transitionTimer = 0.5;
+  levelState.pendingLevel = nextLevel <= LEVEL_COUNT ? nextLevel : "complete";
+
+  if (playerBody) {
+    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  }
+
+  if (levelState.finalPlatform) {
+    const { x, y, z } = levelState.finalPlatform.mesh.position;
+    spawnParticles(x, y + 0.35, z, 0xffd166, 16, 1.25);
+  }
+}
+
+function queueLevelRestart() {
+  if (
+    levelState.isTransitioning ||
+    playerState.isGameOver ||
+    levelState.isGameComplete
+  ) {
+    return;
+  }
+
+  levelState.isTransitioning = true;
+  levelState.transitionTimer = 0.35;
+  levelState.pendingLevel = levelState.currentLevel;
+
+  if (playerBody) {
+    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  }
+}
+
+function finishCampaign() {
+  levelState.isGameComplete = true;
+  levelState.isTransitioning = false;
+  levelState.transitionTimer = 0;
+  levelState.pendingLevel = null;
+  uiManager.showGameComplete();
+}
+
+function handleInput() {
   const velocity = playerBody.linvel();
   const translation = playerBody.translation();
   let moveX = 0;
 
-  // 1. Raycast Ground Detection (ensure we don't hit the player itself)
-  // Cube height is 1, so the base is at -0.5. Scale ray down from slightly above base.
   const ray = new RAPIER.Ray(
     { x: translation.x, y: translation.y - 0.4, z: translation.z },
     { x: 0, y: -1, z: 0 },
   );
-
-  // castRay(ray, maxToi, solid, groups, filter_predicate, filter_collider, filter_rigid_body)
-  // We pass 'playerBody' as the last argument to EXCLUDE IT from the raycast results.
-  const hit = world.castRay(ray, 0.2, true, null, null, null, playerBody);
+  const hit = world.castRay(ray, 0.24, true, null, null, null, playerBody);
   const isGrounded = hit !== null;
 
-  // Movement logic
-  if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= gameConfig.playerSpeed;
-  if (keys["KeyD"] || keys["ArrowRight"]) moveX += gameConfig.playerSpeed;
+  if (!levelState.isTransitioning && !levelState.isGameComplete) {
+    if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= gameConfig.playerSpeed;
+    if (keys["KeyD"] || keys["ArrowRight"]) moveX += gameConfig.playerSpeed;
 
-  // 2. Jumping System
-  // Initial Jump
-  if (keys["Space"] && isGrounded) {
-    playerBody.setLinvel(
-      { x: velocity.x, y: gameConfig.jumpImpulse, z: velocity.z },
-      true,
-    );
-    // Jump Splash
-    spawnParticles(translation.x, translation.y - 0.4, translation.z, 0x44ff44, 8);
+    if (keys.Space && isGrounded) {
+      playerBody.setLinvel(
+        { x: velocity.x, y: gameConfig.jumpImpulse, z: velocity.z },
+        true,
+      );
+      spawnParticles(
+        translation.x,
+        translation.y - 0.4,
+        translation.z,
+        0x44ff44,
+        8,
+        1.0,
+        { drainGelTotal: JUMP_GEL_COST },
+      );
+    }
   }
 
-  // 3. Variable Jump Height (Mario-style)
-  // If we release space while moving upward, we cut the upward velocity
-  if (!keys["Space"] && velocity.y > 0) {
+  if (!keys.Space && velocity.y > 0) {
     playerBody.setLinvel(
       { x: velocity.x, y: velocity.y * 0.9, z: velocity.z },
       true,
     );
   }
 
-  // Apply movement while preserving gravity's effect on Y
   playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
-
-  // Return current state for animation and camera
-  return { translation, hit };
+  return { translation, hit, isGrounded };
 }
 
-function updateCamera(targetPos) {
-  // Smoother camera follow on X-axis and Y-axis (side scrolling)
-  const targetCamX = targetPos.x;
-  const targetCamY = targetPos.y + 4;
+function updateCamera(targetPosition) {
+  const targetCamX = targetPosition.x;
+  const targetCamY = targetPosition.y + 4;
 
   camera.position.x += (targetCamX - camera.position.x) * 0.1;
   camera.position.y += (targetCamY - camera.position.y) * 0.1;
-  camera.lookAt(camera.position.x, targetPos.y, 0);
+  camera.lookAt(camera.position.x, targetPosition.y, 0);
 }
 
-let animationId;
-function animate() {
-  animationId = requestAnimationFrame(animate);
-
-  const delta = clock.getDelta();
-
-  // If game is over, pause most logic
-  if (playerState.isGameOver) {
-    // Still update particles for a fading effect
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      p.life -= delta * 1.5;
-      p.mesh.material.opacity = p.life;
-      if (p.life <= 0) {
-        scene.remove(p.mesh);
-        p.mesh.geometry.dispose();
-        p.mesh.material.dispose();
-        particles.splice(i, 1);
-      }
-    }
-    renderer.render(scene, camera);
-    return; 
+function updateTransition(delta) {
+  if (!levelState.isTransitioning) {
+    return;
   }
 
-  // Step World (Fixed timestep)
-  world.step();
+  levelState.transitionTimer = Math.max(0, levelState.transitionTimer - delta);
+  if (levelState.transitionTimer > 0) {
+    return;
+  }
 
-  // Call Lua Update Hook
-  luaRuntime.callFunction("onUpdate", delta);
+  if (levelState.pendingLevel === "complete") {
+    finishCampaign();
+    return;
+  }
 
-  // Character Logic
-  const { translation: pos, hit } = handleInput(delta);
-  const isGrounded = hit !== null;
+  if (typeof levelState.pendingLevel === "number") {
+    buildLevel(levelState.pendingLevel);
+  }
+}
 
-  // --- NEW: Shader-Based Jelly Physics & Collider Scaling ---
-  const vel = playerBody.linvel();
+function updateParticles(delta) {
+  for (let index = particles.length - 1; index >= 0; index -= 1) {
+    const particle = particles[index];
+    particle.life -= delta * 1.5;
+    particle.velocity.y += gameConfig.gravity * delta;
+    particle.mesh.position.addScaledVector(particle.velocity, delta);
+    particle.mesh.material.opacity = particle.life;
+
+    if (particle.life <= 0) {
+      scene.remove(particle.mesh);
+      particle.mesh.geometry.dispose();
+      particle.mesh.material.dispose();
+      particles.splice(index, 1);
+    }
+  }
+}
+
+function updatePlatforms(hit, delta) {
+  for (const platform of platforms) {
+    const isSteppedOn = hit && hit.collider.handle === platform.collider.handle;
+    const sinkDepth = platform.isFinal ? 0.42 : 0.58;
+    const sinkSpeed = platform.isFinal ? 0.08 : 0.1;
+    const returnSpeed = platform.isFinal ? 0.045 : 0.03;
+    const bobOffset = platform.isFinal
+      ? Math.sin(playerState.jellyUniforms.uTime.value * 1.8 + platform.bobPhase) * 0.08
+      : 0;
+
+    const targetY = (isSteppedOn ? platform.originalY - sinkDepth : platform.originalY) + bobOffset;
+    const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
+
+    platform.currentY += (targetY - platform.currentY) * alpha * Math.min(1, delta * 60);
+    platform.body.setNextKinematicTranslation({
+      x: platform.mesh.position.x,
+      y: platform.currentY,
+      z: platform.mesh.position.z,
+    });
+    platform.mesh.position.y = platform.currentY;
+  }
+}
+
+function updateWalkDrain(delta, isGrounded, velocity) {
+  if (!isGrounded || Math.abs(velocity.x) < 0.25 || levelState.isTransitioning) {
+    return;
+  }
+
+  playerState.walkDistanceAccumulator += Math.abs(velocity.x) * delta;
+  if (playerState.walkDistanceAccumulator < WALK_STEP_DISTANCE) {
+    return;
+  }
+
+  playerState.walkDistanceAccumulator -= WALK_STEP_DISTANCE;
+  const translation = playerBody.translation();
+  spawnParticles(
+    translation.x + (Math.random() - 0.5) * 0.35,
+    translation.y - 0.48,
+    translation.z,
+    0x44ff44,
+    4,
+    0.75,
+    { drainGelTotal: WALK_GEL_COST },
+  );
+}
+
+function updateJelly(delta, isGrounded) {
+  const velocity = playerBody.linvel();
   playerState.jellyUniforms.uTime.value += delta;
-  
-  // 1. Detect Impact (Landing)
+
   if (isGrounded && !playerState.lastGrounded) {
     const impactSpeed = Math.abs(playerState.lastVelY || 0);
     playerState.jellyUniforms.uImpact.value = impactSpeed;
@@ -524,169 +742,98 @@ function animate() {
     if (playerState.spawnLandingGrace) {
       playerState.spawnLandingGrace = false;
     } else {
-      // Calculate count and speed scale based on impact velocity (fall height)
-      // NORMAL jump impact is ~12. We scale from there.
-      const baseCount = 6;
-      const additionalCount = Math.floor(impactSpeed * 1.5);
-      const particleCount = Math.min(baseCount + additionalCount, 40); // Cap to avoid perf hit
-      const speedScale = 0.4 + (impactSpeed / 10);
-
+      const particleCount = Math.min(6 + Math.floor(impactSpeed), 18);
+      const speedScale = 0.3 + impactSpeed / 12;
+      const pos = playerBody.translation();
       spawnParticles(
-        pos.x, 
-        pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y, // Bottom of the player
-        pos.z, 
-        0x44ff44, 
-        particleCount, 
-        speedScale
+        pos.x,
+        pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y,
+        pos.z,
+        0x44ff44,
+        particleCount,
+        speedScale,
       );
     }
   }
+
   playerState.lastGrounded = isGrounded;
-  playerState.lastVelY = vel.y;
+  playerState.lastVelY = velocity.y;
 
-  // 2. Update Collider to match current gel mass (biological size)
-  // We recreate it for accuracy in Rapier WASM, but only if it changed significantly
-  const currentMass = playerState.gelMass;
-  if (playerCollider && (!playerState._lastColliderMass || Math.abs(playerState._lastColliderMass - currentMass) > 0.01)) {
-    world.removeCollider(playerCollider, false);
-    const halfSize = 0.5 * currentMass;
-    const desc = RAPIER.ColliderDesc.cuboid(halfSize, halfSize, halfSize)
-      .setFriction(0)
-      .setRestitution(0);
-    playerCollider = world.createCollider(desc, playerBody);
-    playerState._lastColliderMass = currentMass;
-  }
-
-  // 3. Calculate Squash and Stretch Targets
   let targetScaleY = 1.0;
   let targetScaleXZ = 1.0;
-  
+
   if (!isGrounded) {
-    const stretch = Math.abs(vel.y) * 0.025;
+    const stretch = Math.abs(velocity.y) * 0.025;
     targetScaleY = 1.0 + stretch;
     targetScaleXZ = 1.0 - stretch * 0.5;
   } else {
-    const speedFactor = Math.abs(vel.x) * 0.02;
+    const speedFactor = Math.abs(velocity.x) * 0.02;
     targetScaleXZ = 1.0 + speedFactor;
     targetScaleY = 1.0 - speedFactor * 0.2;
   }
 
-  // Multiply by current gel mass (biological size)
   targetScaleY *= playerState.gelMass;
   targetScaleXZ *= playerState.gelMass;
 
-  // Smooth the scale in JS (it's O(1) so it's fine) and pass to Shader
-  const stiffness = 15.0; // Shader makes it feel faster, so lower stiffness
-  playerState.jellyUniforms.uScale.value.y += (targetScaleY - playerState.jellyUniforms.uScale.value.y) * stiffness * delta;
-  playerState.jellyUniforms.uScale.value.x += (targetScaleXZ - playerState.jellyUniforms.uScale.value.x) * stiffness * delta;
+  const stiffness = 15.0;
+  playerState.jellyUniforms.uScale.value.y +=
+    (targetScaleY - playerState.jellyUniforms.uScale.value.y) * stiffness * delta;
+  playerState.jellyUniforms.uScale.value.x +=
+    (targetScaleXZ - playerState.jellyUniforms.uScale.value.x) * stiffness * delta;
   playerState.jellyUniforms.uScale.value.z = playerState.jellyUniforms.uScale.value.x;
 
-  // 3. Calculate Tilt (Lag)
-  const targetTilt = vel.x * -0.05;
-  playerState.jellyUniforms.uTilt.value += (targetTilt - playerState.jellyUniforms.uTilt.value) * 10.0 * delta;
+  const targetTilt = velocity.x * -0.05;
+  playerState.jellyUniforms.uTilt.value +=
+    (targetTilt - playerState.jellyUniforms.uTilt.value) * 10.0 * delta;
 
-  // 4. Update Uniform Velocity
-  playerState.jellyUniforms.uVelocity.value.set(vel.x, vel.y, vel.z);
+  playerState.jellyUniforms.uVelocity.value.set(velocity.x, velocity.y, velocity.z);
+}
 
-  // Sync Position
-  player.position.copy(pos);
+function updateFrame(delta) {
+  updateParticles(delta);
 
-  // --- Gel Drag Particles ---
-  if (isGrounded && Math.abs(vel.x) > 0.5) {
-    playerState.particleTimer += delta * Math.abs(vel.x);
-    if (playerState.particleTimer > 1.5) {
-      const soleY = pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y;
-      spawnParticles(
-        pos.x + (Math.random() - 0.5) * 0.5, 
-        soleY, 
-        pos.z + (Math.random() - 0.5) * 0.5, 
-        0x44ff44,
-        5
-      );
-      playerState.particleTimer = 0;
-    }
+  if (playerState.isGameOver || levelState.isGameComplete) {
+    return;
   }
 
-  // Platform Weight Logic
-  platforms.forEach((p) => {
-    // Check if this specific platform is being stepped on
-    const isSteppedOn = hit && hit.collider.handle === p.collider.handle;
-
-    // Config for leaf-like behavior
-    const sinkDepth = 0.6;
-    const sinkSpeed = 0.1;
-    const returnSpeed = 0.03;
-
-    const targetY = isSteppedOn ? p.originalY - sinkDepth : p.originalY;
-    const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
-
-    // Smooth transition (Lerp)
-    p.currentY += (targetY - p.currentY) * alpha;
-
-    // Update Physics Body
-    p.body.setNextKinematicTranslation({
-      x: p.mesh.position.x,
-      y: p.currentY,
-      z: p.mesh.position.z,
-    });
-
-    // Update Mesh
-    p.mesh.position.y = p.currentY;
-  });
-
-  // Coin Collection & Animation
-  coins.forEach((coin, index) => {
-    if (coin.collected) return;
-
-    // Rotate
-    coin.mesh.rotation.z += delta * 3;
-
-    // Simple distance check for collection
-    const dx = pos.x - coin.position.x;
-    const dy = pos.y - coin.position.y;
-    const dz = pos.z - coin.position.z;
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    if (dist < 1.0) {
-      coin.collected = true;
-      scene.remove(coin.mesh);
-      coinsCollected++;
-
-      // Update UI via UIManager
-      uiManager.updateCoinCount(coinsCollected);
-
-      // Spawn Particles
-      spawnParticles(
-        coin.position.x,
-        coin.position.y,
-        coin.position.z,
-        0xffdd00,
-      );
-
-      console.log(`Coin collected! Total: ${coinsCollected}`);
-    }
-  });
-
-  // Update Particles
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.life -= delta * 1.5;
-
-    // Apply gravity to particles
-    p.velocity.y += gameConfig.gravity * delta;
-    p.mesh.position.addScaledVector(p.velocity, delta);
-    p.mesh.material.opacity = p.life;
-
-    if (p.life <= 0) {
-      scene.remove(p.mesh);
-      p.mesh.geometry.dispose();
-      p.mesh.material.dispose();
-      particles.splice(i, 1);
-    }
+  updateTransition(delta);
+  if (playerState.isGameOver || levelState.isGameComplete) {
+    return;
   }
 
-  // Sync Camera
-  updateCamera(pos);
+  world.step();
+  luaRuntime.callFunction("onUpdate", delta);
+
+  const { translation, hit, isGrounded } = handleInput();
+  const velocity = playerBody.linvel();
+
+  syncPlayerCollider();
+  updateJelly(delta, isGrounded);
+  updateWalkDrain(delta, isGrounded, velocity);
+  updatePlatforms(hit, delta);
+
+  if (
+    hit &&
+    levelState.finalPlatform &&
+    hit.collider.handle === levelState.finalPlatform.collider.handle
+  ) {
+    startLevelTransition();
+  }
+
+  if (translation.y < -10) {
+    queueLevelRestart();
+  }
+
+  player.position.copy(translation);
+  updateCamera(translation);
+}
+
+function animate() {
+  animationId = requestAnimationFrame(animate);
+
+  if (!gameplayState.manualStepMode) {
+    updateFrame(clock.getDelta());
+  }
 
   renderer.render(scene, camera);
 }
@@ -697,7 +844,338 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// Support Vite Hot Module Replacement
+function mulberry32(seed) {
+  return () => {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(start, end, alpha) {
+  return start + (end - start) * alpha;
+}
+
+function buildLevelProfiles() {
+  const rng = mulberry32(LEVEL_SEED);
+  const profiles = [];
+  let levelsSinceRespite = 9;
+
+  for (let level = 1; level <= LEVEL_COUNT; level += 1) {
+    let isRespite = false;
+
+    if (level > 4 && level < LEVEL_COUNT) {
+      const mustInsert = levelsSinceRespite >= 9;
+      const canInsert = levelsSinceRespite >= 5;
+      if (mustInsert || (canInsert && rng() < 0.18 + level * 0.001)) {
+        isRespite = true;
+        levelsSinceRespite = 0;
+      } else {
+        levelsSinceRespite += 1;
+      }
+    } else {
+      levelsSinceRespite += 1;
+    }
+
+    profiles.push(generateLevelProfile(level, isRespite));
+  }
+
+  return profiles;
+}
+
+function generateLevelProfile(level, isRespite) {
+  const rng = mulberry32((LEVEL_SEED ^ (level * 0x9e3779b9)) >>> 0);
+  const progress = (level - 1) / (LEVEL_COUNT - 1);
+  const softenedProgress = isRespite
+    ? Math.max(0, progress - 0.08 - rng() * 0.03)
+    : progress;
+  const earlyPressure = Math.max(0, 1 - progress / 0.22);
+  const earlyCurveBoost = earlyPressure * (isRespite ? 0.03 : 0.085);
+  const shapeProgress = clamp(softenedProgress + earlyCurveBoost, 0, 1);
+  const platformCount = clamp(
+    Math.round(
+      3 +
+        shapeProgress * 8.5 +
+        rng() * 1.6 +
+        (progress > 0.7 ? 0.8 : 0) +
+        earlyPressure * (isRespite ? 0.35 : 0.95),
+    ),
+    3,
+    11,
+  );
+  const platformDiameter =
+    lerp(4.0, 2.55, shapeProgress) +
+    (isRespite ? 0.25 : 0) -
+    earlyPressure * (isRespite ? 0.05 : 0.18);
+  const gapBase =
+    lerp(4.1, 5.85, shapeProgress) -
+    (isRespite ? 0.28 : 0) +
+    earlyPressure * (isRespite ? 0.12 : 0.38);
+  const gapVariance =
+    lerp(0.28, 1.25, shapeProgress) * (isRespite ? 0.72 : 1) +
+    earlyPressure * (isRespite ? 0.02 : 0.08);
+  const riseMax =
+    lerp(0.55, 1.55, shapeProgress) * (isRespite ? 0.8 : 1) +
+    earlyPressure * (isRespite ? 0.07 : 0.22);
+  const fallMax =
+    lerp(0.22, 0.85, shapeProgress) * (isRespite ? 0.82 : 1) +
+    earlyPressure * (isRespite ? 0.05 : 0.16);
+  const minY = lerp(1.9, 3.45, shapeProgress) - (isRespite ? 0.18 : 0);
+  const maxY =
+    lerp(3.7, 7.8, shapeProgress) -
+    (isRespite ? 0.12 : 0) +
+    earlyPressure * (isRespite ? 0.08 : 0.28);
+  const pattern = isRespite
+    ? "plateau"
+    : LEVEL_PATTERNS[Math.floor(rng() * LEVEL_PATTERNS.length)];
+
+  let gapScale = 1;
+  let layout = [];
+  let estimatedDrain = 1;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    layout = createLayoutCandidate({
+      platformCount,
+      platformDiameter,
+      gapBase,
+      gapVariance,
+      riseMax,
+      fallMax,
+      minY,
+      maxY,
+      pattern,
+      gapScale,
+      progress: shapeProgress,
+      rng,
+      isRespite,
+      earlyPressure,
+    });
+    estimatedDrain = estimateLayoutDrain(layout);
+    if (estimatedDrain <= MAX_SAFE_LEVEL_DRAIN) {
+      break;
+    }
+    gapScale *= 0.92;
+  }
+
+  return {
+    level,
+    isRespite,
+    label: buildLevelLabel(level, softenedProgress, isRespite),
+    estimatedDrain,
+    layout,
+  };
+}
+
+function createLayoutCandidate(config) {
+  const {
+    platformCount,
+    platformDiameter,
+    gapBase,
+    gapVariance,
+    riseMax,
+    fallMax,
+    minY,
+    maxY,
+    pattern,
+    gapScale,
+    progress,
+    rng,
+    isRespite,
+    earlyPressure,
+  } = config;
+
+  const layout = [];
+  let x = 4.6;
+  let y = 1.9;
+
+  for (let index = 0; index < platformCount; index += 1) {
+    const gapNoise = (rng() * 2 - 1) * gapVariance;
+    const gap = Math.max(3.45, (gapBase + gapNoise) * gapScale);
+    x += index === 0 ? gap * 0.96 : gap;
+
+    const diameter = clamp(
+      platformDiameter + (rng() * 2 - 1) * 0.32 + (index % 3 === 0 ? 0.06 : 0),
+      2.45,
+      4.6,
+    );
+
+    y = computePlatformHeight({
+      index,
+      platformCount,
+      y,
+      minY,
+      maxY,
+      riseMax,
+      fallMax,
+      pattern,
+      rng,
+      earlyPressure,
+    });
+
+    layout.push({
+      x,
+      y,
+      z: 0,
+      w: diameter,
+      h: PLATFORM_HEIGHT,
+      d: diameter,
+      color: LEVEL_COLORS[(index + Math.floor(progress * 6)) % LEVEL_COLORS.length],
+      isFinal: false,
+    });
+  }
+
+  const finalGap = Math.max(
+    3.7,
+    (gapBase + 0.45 + rng() * gapVariance + earlyPressure * (isRespite ? 0.08 : 0.18)) *
+      gapScale,
+  );
+  const finalY = clamp(
+    y + (isRespite ? 0.06 : (rng() - 0.25) * Math.min(riseMax, 0.55)),
+    minY,
+    maxY,
+  );
+  const finalDiameter = clamp(platformDiameter + 0.22 + (isRespite ? 0.18 : 0), 3.0, 4.7);
+
+  layout.push({
+    x: x + finalGap,
+    y: finalY,
+    z: 0,
+    w: finalDiameter,
+    h: PLATFORM_HEIGHT,
+    d: finalDiameter,
+    color: 0xffd166,
+    isFinal: true,
+  });
+
+  return layout;
+}
+
+function computePlatformHeight(config) {
+  const {
+    index,
+    platformCount,
+    y,
+    minY,
+    maxY,
+    riseMax,
+    fallMax,
+    pattern,
+    rng,
+    earlyPressure,
+  } = config;
+  const ratio = platformCount <= 1 ? 1 : index / (platformCount - 1);
+  let delta = 0;
+
+  switch (pattern) {
+    case "glide":
+      delta = lerp(0.18, riseMax, ratio) * (0.45 + rng() * 0.35);
+      if (index % 4 === 3) delta *= 0.55;
+      break;
+    case "pulse":
+      delta =
+        index % 3 === 1
+          ? -fallMax * (0.45 + rng() * 0.25)
+          : riseMax * (0.35 + rng() * 0.45);
+      break;
+    case "switchback":
+      delta =
+        index % 4 < 2
+          ? riseMax * (0.45 + rng() * 0.4)
+          : -fallMax * (0.4 + rng() * 0.3);
+      break;
+    case "crest":
+      delta =
+        ratio < 0.56
+          ? riseMax * (0.42 + rng() * 0.38)
+          : -fallMax * (0.18 + rng() * 0.18);
+      break;
+    case "plateau":
+      delta = index % 3 === 2 ? 0.14 + rng() * 0.18 : 0.04 + rng() * 0.08;
+      break;
+    default:
+      delta = 0.12 + rng() * 0.12;
+      break;
+  }
+
+  if (earlyPressure > 0) {
+    const cadenceKick = index % 2 === 0 ? 1 : -0.45;
+    delta += cadenceKick * earlyPressure * 0.14;
+  }
+
+  return clamp(y + delta, minY, maxY);
+}
+
+function estimateLayoutDrain(layout) {
+  let routeDistance = 0;
+  let previousX = 0;
+
+  for (const platform of layout) {
+    routeDistance += platform.x - previousX;
+    previousX = platform.x;
+  }
+
+  const jumpCost = layout.length * JUMP_GEL_COST;
+  const walkCost = routeDistance * (WALK_GEL_COST / WALK_STEP_DISTANCE);
+  return jumpCost + walkCost;
+}
+
+function buildLevelLabel(level, progress, isRespite) {
+  if (isRespite) return "BREATHER ROUTE";
+  if (level >= LEVEL_COUNT - 4) return "FINAL ASCENT";
+  if (progress < 0.2) return "OPENING ARC";
+  if (progress < 0.45) return "RISING RHYTHM";
+  if (progress < 0.72) return "TIGHTER GAPS";
+  return "PRECISION RUN";
+}
+
+function setupTestingHooks() {
+  window.render_game_to_text = () =>
+    JSON.stringify({
+      mode: playerState.isGameOver
+        ? "game_over"
+        : levelState.isGameComplete
+          ? "game_complete"
+          : levelState.isTransitioning
+            ? "transition"
+            : "playing",
+      coordinateSystem: "x right, y up, z depth toward camera",
+      level: {
+        current: levelState.currentLevel,
+        total: LEVEL_COUNT,
+        label: levelState.currentProfile?.label ?? "",
+        respite: !!levelState.currentProfile?.isRespite,
+      },
+      player: playerBody
+        ? {
+            x: Number(playerBody.translation().x.toFixed(2)),
+            y: Number(playerBody.translation().y.toFixed(2)),
+            vx: Number(playerBody.linvel().x.toFixed(2)),
+            vy: Number(playerBody.linvel().y.toFixed(2)),
+            gelMass: Number(playerState.gelMass.toFixed(3)),
+          }
+        : null,
+      platforms: platforms.map((platform) => ({
+        x: Number(platform.mesh.position.x.toFixed(2)),
+        y: Number(platform.mesh.position.y.toFixed(2)),
+        final: platform.isFinal,
+      })),
+    });
+
+  window.advanceTime = (ms = 16.67) => {
+    gameplayState.manualStepMode = true;
+    const steps = Math.max(1, Math.round(ms / (1000 / 60)));
+    for (let index = 0; index < steps; index += 1) {
+      updateFrame(1 / 60);
+    }
+    renderer.render(scene, camera);
+  };
+}
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     cancelAnimationFrame(animationId);

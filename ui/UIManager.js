@@ -4,28 +4,27 @@
  */
 export class UIManager {
   constructor() {
-    this.coinValueEl = document.getElementById("coin-value");
     this.healthValueEl = document.getElementById("health-value");
     this.healthFillEl = document.getElementById("health-fill");
     this.healthPanelEl = document.querySelector(".health-panel");
+    this.levelValueEl = document.getElementById("level-value");
+    this.routeTagEl = document.getElementById("route-tag");
     this.loadingEl = document.getElementById("loading");
     this.gameOverEl = document.getElementById("game-over");
+    this.gameCompleteEl = document.getElementById("game-complete");
     this.retryBtn = document.getElementById("retry-btn");
+    this.completeRetryBtn = document.getElementById("complete-retry-btn");
 
     if (this.retryBtn) {
       this.retryBtn.addEventListener("click", () => {
         window.location.reload();
       });
     }
-  }
 
-  /**
-   * Updates the displayed coin count.
-   * @param {number} count 
-   */
-  updateCoinCount(count) {
-    if (this.coinValueEl) {
-      this.coinValueEl.innerText = count.toString();
+    if (this.completeRetryBtn) {
+      this.completeRetryBtn.addEventListener("click", () => {
+        window.location.reload();
+      });
     }
   }
 
@@ -54,9 +53,38 @@ export class UIManager {
     }
   }
 
+  updateLevel(level, totalLevels, isRespite, label) {
+    if (this.levelValueEl) {
+      this.levelValueEl.innerText = `${level} / ${totalLevels}`;
+    }
+
+    if (this.routeTagEl) {
+      this.routeTagEl.innerText = label;
+      this.routeTagEl.dataset.respite = isRespite ? "true" : "false";
+    }
+  }
+
   showGameOver() {
     if (this.gameOverEl) {
       this.gameOverEl.style.display = "flex";
+    }
+  }
+
+  hideGameOver() {
+    if (this.gameOverEl) {
+      this.gameOverEl.style.display = "none";
+    }
+  }
+
+  showGameComplete() {
+    if (this.gameCompleteEl) {
+      this.gameCompleteEl.style.display = "flex";
+    }
+  }
+
+  hideGameComplete() {
+    if (this.gameCompleteEl) {
+      this.gameCompleteEl.style.display = "none";
     }
   }
 
