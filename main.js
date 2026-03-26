@@ -12,6 +12,12 @@ const GRAVITY = -19.6; // Stronger for platforming
 const PLAYER_SPEED = 8;
 const JUMP_IMPULSE = 12;
 
+// Helper: Clean up existing renderer if it exists (for HMR)
+const existingCanvas = document.querySelector('canvas');
+if (existingCanvas) {
+    existingCanvas.remove();
+}
+
 async function init() {
     // 1. Initialize Physics Engine (Rapier)
     await RAPIER.init();
@@ -65,17 +71,23 @@ async function init() {
     createPlayer();
 
     // Event Listeners
-    window.addEventListener('keydown', (e) => (keys[e.code] = true));
-    window.addEventListener('keyup', (e) => (keys[e.code] = false));
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
     window.addEventListener('resize', onWindowResize);
 
-    // Remove Loading Screen
-    document.getElementById('loading').style.opacity = 0;
-    setTimeout(() => document.getElementById('loading').remove(), 500);
+    // Remove Loading Screen (safely)
+    const loading = document.getElementById('loading');
+    if (loading) {
+        loading.style.opacity = 0;
+        setTimeout(() => loading.remove(), 500);
+    }
 
     // Start Loop
     animate();
 }
+
+function onKeyDown(e) { keys[e.code] = true; }
+function onKeyUp(e) { keys[e.code] = false; }
 
 /**
  * Creates a static ground
@@ -158,7 +170,6 @@ function handleInput(delta) {
     if (keys['KeyD'] || keys['ArrowRight']) moveX += PLAYER_SPEED;
 
     // Jumping - Only jump if approximately on ground
-    // check speed as a simple heuristic for being at rest/landed
     if (keys['Space'] && Math.abs(velocity.y) < 0.01) {
         playerBody.setLinvel({ x: velocity.x, y: JUMP_IMPULSE, z: velocity.z }, true);
     }
@@ -180,8 +191,9 @@ function updateCamera(targetPos) {
     camera.lookAt(camera.position.x, targetPos.y, 0);
 }
 
+let animationId;
 function animate() {
-    requestAnimationFrame(animate);
+    animationId = requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
     
@@ -206,4 +218,15 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+// Support Vite Hot Module Replacement
+if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+        cancelAnimationFrame(animationId);
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('keyup', onKeyUp);
+        window.removeEventListener('resize', onWindowResize);
+    });
+}
+
 init();
+
