@@ -15,7 +15,7 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 ## 🏗 Key Systems
 
 ### 1. Physics Engine (Rapier)
-- **Initialization**: Async initialization via `RAPIER.init()` in `main.js`.
+- **Initialization**: Async initialization via `RAPIER.init()` in `core/Engine.js`.
 - **World**: 3D world with gravity set to `-19.6` (customized for snappy platforming).
 - **Player Body**: Dynamic rigid body with locked rotations (`enabledRotations(false, false, false)`).
 - **Ground Detection**: Implemented via **Raycasting**. A ray is cast from slightly above the player's base downwards. The `playerBody` is explicitly excluded from this raycast to prevent self-collision bugs.
@@ -32,14 +32,16 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - **Fixed Z**: Camera is positioned at `Z: 12` looking towards `Z: 0`.
 
 ### 4. Lua Scripting System
-- **Runtime**: Initialized in `luaRuntime.js` using `wasmoon`.
+- **Runtime**: Initialized in `core/LuaRuntime.js` using `wasmoon`.
 - **Interop**: JavaScript objects are exposed to Lua.
     - `config`: Table containing `playerSpeed`, `jumpImpulse`, and `gravity`.
-    - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)` and `spawnPlayer(x,y,z)`.
+    - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)`, `createGround()`, `spawnPlayer(x,y,z)`, and `setGravity(y)`.
+- **Hooks**: 
+    - `onUpdate(delta)`: Optional global Lua function called every frame from the JS animate loop.
 - **Workflow**: Scripts reside in the `scripts/` directory and are imported as raw text by Vite to be executed at runtime.
 
 ### 5. Hot Module Replacement (HMR)
-- Custom HMR support is implemented in `main.js` using `import.meta.hot`.
+- Custom HMR support is implemented in `core/Engine.js` using `import.meta.hot`.
 - **Cleanup**: On module reload, the previous `canvas` is removed, the `requestAnimationFrame` loop is cancelled, and window event listeners are detached to prevent memory leaks and duplicate renders.
 
 ## 📂 File Structure
@@ -53,8 +55,8 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - `README.md`: User-facing instructions.
 
 ## 💡 Developer Notes for Agents
-- **Adding Platforms**: Use the `createPlatform(x, y, z, w, h, d, color)` helper. It handles both Three.js mesh creation and Rapier static body creation.
-- **Model Integration**: To replace the box player, import a GLTF model and sync its position with `playerBody.translation()` in the `animate` loop.
+- **Adding Platforms**: Use the `game.createPlatform(x, y, z, w, h, d, color)` in Lua. It handles both Three.js mesh creation and Rapier static body creation.
+- **Model Integration**: To replace the box player, import a GLTF model and sync its position with `playerBody.translation()` in the `animate` loop in `core/Engine.js`.
 - **Ground Raycast**: If you change the player scale, remember to adjust the ray start offset and length in `handleInput()` (currently hardcoded for a `1x1x1` box).
 
 ---
