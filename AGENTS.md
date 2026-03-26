@@ -37,6 +37,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Horizontal movement is direct X velocity assignment.
 - Jumping uses `jumpImpulse = 12`.
 - Releasing jump early damps upward velocity for variable jump height.
+- Landing after a fall triggers a short camera shake, and longer airtime produces stronger impact.
 - `gelMass` starts each level at `1.0`.
 - Health warning starts at `28 HP` (28%), but actual death happens only at `0`.
 - When the player dies, the run freezes and the `GEL DEPLETED` overlay appears.
@@ -324,6 +325,7 @@ Use these when validating layout generation or progression through Playwright or
 - route label
 - whether the level is a respite
 - player position / velocity / gel mass
+- camera shake state for landing feedback
 - all current platform positions and final-flag state
 
 ## File Structure

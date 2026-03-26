@@ -40,6 +40,10 @@ const PLAYER_GROUND_RAY_OFFSETS = [-0.45, -0.22, 0, 0.22, 0.45];
 const PLAYER_GROUND_RAY_START_Y = -0.4;
 const PLAYER_GROUND_RAY_LENGTH = 0.6;
 const PLAYER_GROUND_COYOTE_TIME = 0.14;
+const JUMP_CAMERA_SHAKE_MAX = 1;
+const JUMP_CAMERA_SHAKE_DECAY = 4.2;
+const JUMP_CAMERA_SHAKE_OFFSET = 0.22;
+const JUMP_CAMERA_SHAKE_ROLL = 0.018;
 
 const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
 const LEVEL_COLORS = [
@@ -56,6 +60,9 @@ const playerState = {
   isGameOver: false,
   lastGrounded: true,
   lastVelY: 0,
+  airborneTime: 0,
+  lastLandingAirTime: 0,
+  lastLandingImpactSpeed: 0,
   particleTimer: 0,
   walkDistanceAccumulator: 0,
   groundedCoyoteTimer: 0,
@@ -83,6 +90,11 @@ const levelState = {
 
 const gameplayState = {
   manualStepMode: false,
+};
+
+const jumpCameraState = {
+  shake: 0,
+  phase: 0,
 };
 
 const gameConfig = {
@@ -387,6 +399,36 @@ function createPlayer() {
   );
 }
 
+function triggerLandingCameraEffect(airborneTime, impactSpeed) {
+  const fallStrength = clamp((airborneTime - 0.08) / 0.9, 0, 1);
+  const impactStrength = clamp(Math.abs(impactSpeed) / 12, 0, 1);
+  const shakeStrength = clamp(fallStrength * 0.8 + impactStrength * 0.35, 0, 1);
+
+  if (shakeStrength <= 0) {
+    return;
+  }
+
+  jumpCameraState.shake = Math.min(
+    JUMP_CAMERA_SHAKE_MAX,
+    jumpCameraState.shake + 0.18 + shakeStrength * 0.82,
+  );
+
+  const reference = playerBody ? playerBody.translation() : PLAYER_SPAWN;
+  jumpCameraState.phase =
+    playerState.jellyUniforms.uTime.value * 20 +
+    reference.x * 1.3 +
+    reference.y * 0.8 +
+    airborneTime * 11.0;
+}
+
+function updateLandingCameraEffect(delta) {
+  jumpCameraState.phase += delta * (18 + jumpCameraState.shake * 10);
+  jumpCameraState.shake = Math.max(
+    0,
+    jumpCameraState.shake - delta * JUMP_CAMERA_SHAKE_DECAY,
+  );
+}
+
 function drainGel(amount) {
   if (playerState.isGameOver || levelState.isTransitioning || levelState.isGameComplete) {
     return;
@@ -496,6 +538,9 @@ function resetPlayerForLevel() {
   playerState.isGameOver = false;
   playerState.lastGrounded = true;
   playerState.lastVelY = 0;
+  playerState.airborneTime = 0;
+  playerState.lastLandingAirTime = 0;
+  playerState.lastLandingImpactSpeed = 0;
   playerState.particleTimer = 0;
   playerState.walkDistanceAccumulator = 0;
   playerState.groundedCoyoteTimer = 0;
@@ -506,6 +551,8 @@ function resetPlayerForLevel() {
   playerState.jellyUniforms.uScale.value.set(1, 1, 1);
   playerState.jellyUniforms.uTilt.value = 0;
   playerState._lastColliderMass = null;
+  jumpCameraState.shake = 0;
+  jumpCameraState.phase = 0;
 
   if (playerBody) {
     playerBody.setTranslation(PLAYER_SPAWN, true);
@@ -690,6 +737,17 @@ function updateCamera(targetPosition) {
   camera.position.x += (targetCamX - camera.position.x) * 0.1;
   camera.position.y += (targetCamY - camera.position.y) * 0.1;
   camera.lookAt(targetPosition.x * 0.12, targetPosition.y + 1.2, 0);
+
+  if (jumpCameraState.shake > 0) {
+    const shake = jumpCameraState.shake * JUMP_CAMERA_SHAKE_OFFSET;
+    camera.position.x += Math.sin(jumpCameraState.phase * 1.7) * shake;
+    camera.position.y += Math.cos(jumpCameraState.phase * 2.1) * shake * 0.75;
+    camera.rotateZ(
+      Math.sin(jumpCameraState.phase * 2.6) *
+        jumpCameraState.shake *
+        JUMP_CAMERA_SHAKE_ROLL,
+    );
+  }
 }
 
 function updateTransition(delta) {
@@ -785,6 +843,9 @@ function updateJelly(delta, isGrounded) {
   if (isGrounded && !playerState.lastGrounded) {
     const impactSpeed = Math.abs(playerState.lastVelY || 0);
     playerState.jellyUniforms.uImpact.value = impactSpeed;
+    playerState.lastLandingAirTime = playerState.airborneTime;
+    playerState.lastLandingImpactSpeed = impactSpeed;
+    triggerLandingCameraEffect(playerState.airborneTime, impactSpeed);
 
     if (playerState.spawnLandingGrace) {
       playerState.spawnLandingGrace = false;
@@ -801,6 +862,12 @@ function updateJelly(delta, isGrounded) {
         speedScale,
       );
     }
+  }
+
+  if (isGrounded) {
+    playerState.airborneTime = 0;
+  } else {
+    playerState.airborneTime += delta;
   }
 
   playerState.lastGrounded = isGrounded;
@@ -856,6 +923,7 @@ function updateFrame(delta) {
 
   syncPlayerCollider();
   updateJelly(delta, isGrounded);
+  updateLandingCameraEffect(delta);
   updateWalkDrain(delta, isGrounded, velocity);
   updatePlatforms(hit, delta);
 
@@ -1230,12 +1298,19 @@ function setupTestingHooks() {
         respite: !!levelState.currentProfile?.isRespite,
         routeAxis: "vertical",
       },
+      camera: {
+        shake: Number(jumpCameraState.shake.toFixed(3)),
+        phase: Number(jumpCameraState.phase.toFixed(3)),
+      },
       player: playerBody
         ? {
             x: Number(playerBody.translation().x.toFixed(2)),
             y: Number(playerBody.translation().y.toFixed(2)),
             vx: Number(playerBody.linvel().x.toFixed(2)),
             vy: Number(playerBody.linvel().y.toFixed(2)),
+            airborneTime: Number(playerState.airborneTime.toFixed(3)),
+            lastLandingAirTime: Number(playerState.lastLandingAirTime.toFixed(3)),
+            lastLandingImpactSpeed: Number(playerState.lastLandingImpactSpeed.toFixed(3)),
             gelMass: Number(playerState.gelMass.toFixed(3)),
           }
         : null,
