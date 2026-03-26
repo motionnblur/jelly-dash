@@ -28,28 +28,7 @@ async function init() {
   await RAPIER.init();
   world = new RAPIER.World({ x: 0, y: gameConfig.gravity, z: 0 });
 
-  // 2. Initialize Lua Scripting
-  await luaRuntime.init({
-    config: gameConfig,
-    game: {
-      createPlatform: (x, y, z, w, h, d, color) =>
-        createPlatform(x, y, z, w, h, d, color),
-      createGround: () => createGround(),
-      spawnPlayer: (x, y, z) => {
-        if (!playerBody) createPlayer(); // Ensure player exists
-        playerBody.setTranslation({ x, y, z }, true);
-      },
-      setGravity: (y) => {
-        gameConfig.gravity = y;
-        world.gravity = { x: 0, y: y, z: 0 };
-      },
-    },
-  });
-
-  // Run initial Lua script (This will now handle level creation)
-  await luaRuntime.run(initLua);
-
-  // 2. Three.js Scene Setup
+  // 2. Three.js Scene Setup (MUST happen before Lua runs world-creation code)
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a1020);
   scene.fog = new THREE.Fog(0x0a1020, 20, 100);
@@ -87,10 +66,39 @@ async function init() {
   sun.shadow.camera.bottom = -50;
   scene.add(sun);
 
-  // Subtle blue rim light from the front
   const pointLight = new THREE.PointLight(0x00ccff, 1, 30);
   pointLight.position.set(0, 5, 10);
   scene.add(pointLight);
+
+  // 4. Initialize Lua Scripting
+  await luaRuntime.init({
+    config: gameConfig,
+    game: {
+      createPlatform: (x, y, z, w, h, d, color) =>
+        createPlatform(x, y, z, w, h, d, color),
+      createGround: () => createGround(),
+      spawnPlayer: (x, y, z) => {
+        if (!player) createPlayer(); // Use 'player' mesh as existence check
+        playerBody.setTranslation({ x, y, z }, true);
+      },
+      setGravity: (y) => {
+        gameConfig.gravity = y;
+        world.gravity = { x: 0, y: y, z: 0 };
+      },
+      isKeyDown: (code) => !!keys[code],
+      applyImpulse: (x, y, z) => {
+        if (playerBody) playerBody.applyImpulse({ x, y, z }, true);
+      },
+      getVelocity: () => {
+        if (!playerBody) return { x: 0, y: 0, z: 0 };
+        const v = playerBody.linvel();
+        return { x: v.x, y: v.y, z: v.z }; // Plain object for Lua
+      },
+    },
+  });
+
+  // 5. Run initial Lua script (World creation starts here)
+  await luaRuntime.run(initLua);
 
   // All world creation (Ground, Platforms, Player) is now handled by Lua
   // See scripts/init.lua

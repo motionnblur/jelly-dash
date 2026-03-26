@@ -35,7 +35,7 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - **Runtime**: Initialized in `core/LuaRuntime.js` using `wasmoon`.
 - **Interop**: JavaScript objects are exposed to Lua.
     - `config`: Table containing `playerSpeed`, `jumpImpulse`, and `gravity`.
-    - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)`, `createGround()`, `spawnPlayer(x,y,z)`, and `setGravity(y)`.
+    - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)`, `createGround()`, `spawnPlayer(x,y,z)`, `setGravity(y)`, `isKeyDown(code)`, `applyImpulse(x,y,z)`, and `getVelocity()`.
 - **Hooks**: 
     - `onUpdate(delta)`: Optional global Lua function called every frame from the JS animate loop.
 - **Workflow**: Scripts reside in the `scripts/` directory and are imported as raw text by Vite to be executed at runtime.
