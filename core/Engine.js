@@ -166,7 +166,6 @@ function createGround() {
  */
 function createPlatform(x, y, z, w, h, d, color) {
   // 1. Mesh Creation (Hexagonal Prism)
-  // Higher segments for a cylinder look, but 6 for a hexagon.
   const radius = Math.max(w, d) / 2;
   const geometry = new THREE.CylinderGeometry(radius, radius, h, 6);
   const material = new THREE.MeshStandardMaterial({
@@ -176,48 +175,62 @@ function createPlatform(x, y, z, w, h, d, color) {
     metalness: 0.7,
     roughness: 0.2,
   });
-  
+
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  
-  // Rotate slightly to have a flat side facing the camera (Z axis)
-  // Three.js Cylinder is vertical (Y). To make it a platform, we keep it vertical.
-  // We rotate around Y to align edges.
-  mesh.rotation.y = Math.PI / 6; 
 
-  // Add wireframe edges for "Premium" look
+  mesh.rotation.y = Math.PI / 6;
+
   const edges = new THREE.EdgesGeometry(geometry);
   const line = new THREE.LineSegments(
     edges,
-    new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.5 })
+    new THREE.LineBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.5,
+    }),
   );
   mesh.add(line);
-  
+
   scene.add(mesh);
 
-  // 2. Physics Platform (Hexagonal Convex Hull)
-  const desc = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z);
+  // 2. Physics Platform (Kinematic for the "weight" effect)
+  const desc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
+    x,
+    y,
+    z,
+  );
   const body = world.createRigidBody(desc);
-  
-  // Create vertices for the hexagonal hull
+
   const vertices = [];
-  const offset = Math.PI / 6; // Matching the mesh rotation
+  const offset = Math.PI / 6;
   for (let i = 0; i < 6; i++) {
     const angle = (i * Math.PI) / 3 + offset;
     const vx = radius * Math.cos(angle);
     const vz = radius * Math.sin(angle);
-    // Cylinder is along Y, so we add vertex at top and bottom
     vertices.push(vx, -h / 2, vz);
     vertices.push(vx, h / 2, vz);
   }
-  
-  const colliderDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(vertices))
+
+  const colliderDesc = RAPIER.ColliderDesc.convexHull(
+    new Float32Array(vertices),
+  )
     .setFriction(0)
     .setRestitution(0);
-  
-  world.createCollider(colliderDesc, body);
+
+  const collider = world.createCollider(colliderDesc, body);
+
+  // Store for weighted behavior
+  platforms.push({
+    mesh,
+    body,
+    collider,
+    originalY: y,
+    currentY: y,
+    isOccupied: false,
+  });
 }
 
 /**
@@ -270,10 +283,14 @@ function createCoin(x, y, z) {
   const edges = new THREE.EdgesGeometry(geometry);
   const line = new THREE.LineSegments(
     edges,
-    new THREE.LineBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8 })
+    new THREE.LineBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.8,
+    }),
   );
   mesh.add(line);
-  
+
   scene.add(mesh);
 
   // We'll use distance-based collection for simplicity in this template,
@@ -358,8 +375,8 @@ function handleInput(delta) {
   // Apply movement while preserving gravity's effect on Y
   playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
 
-  // Return current position for camera follow
-  return translation;
+  // Return current state for animation and camera
+  return { translation, hit };
 }
 
 function updateCamera(targetPos) {
@@ -385,10 +402,37 @@ function animate() {
   luaRuntime.callFunction("onUpdate", delta);
 
   // Character Logic
-  const pos = handleInput(delta);
+  const { translation: pos, hit } = handleInput(delta);
 
   // Sync Mesh with Body
   player.position.copy(pos);
+
+  // Platform Weight Logic
+  platforms.forEach((p) => {
+    // Check if this specific platform is being stepped on
+    const isSteppedOn = hit && hit.collider.handle === p.collider.handle;
+
+    // Config for leaf-like behavior
+    const sinkDepth = 0.6;
+    const sinkSpeed = 0.1;
+    const returnSpeed = 0.03;
+
+    const targetY = isSteppedOn ? p.originalY - sinkDepth : p.originalY;
+    const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
+
+    // Smooth transition (Lerp)
+    p.currentY += (targetY - p.currentY) * alpha;
+
+    // Update Physics Body
+    p.body.setNextKinematicTranslation({
+      x: p.mesh.position.x,
+      y: p.currentY,
+      z: p.mesh.position.z,
+    });
+
+    // Update Mesh
+    p.mesh.position.y = p.currentY;
+  });
 
   // Coin Collection & Animation
   coins.forEach((coin, index) => {
