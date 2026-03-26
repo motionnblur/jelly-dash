@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
+import { uiManager } from "../ui/UIManager";
 // Automatically load all Lua files in the scripts folder
 const luaModules = import.meta.glob("../scripts/*.lua", {
   query: "?raw",
@@ -12,6 +13,8 @@ const luaModules = import.meta.glob("../scripts/*.lua", {
 let scene, camera, renderer, world, clock;
 let player, playerBody;
 let platforms = [];
+let coins = [];
+let coinsCollected = 0;
 let keys = {};
 
 // Game Configuration (Exposed to Lua)
@@ -98,6 +101,7 @@ async function init() {
         const v = playerBody.linvel();
         return { x: v.x, y: v.y, z: v.z }; // Plain object for Lua
       },
+      createCoin: (x, y, z) => createCoin(x, y, z),
     },
   });
 
@@ -118,12 +122,8 @@ async function init() {
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("resize", onWindowResize);
 
-  // Remove Loading Screen (safely)
-  const loading = document.getElementById("loading");
-  if (loading) {
-    loading.style.opacity = 0;
-    setTimeout(() => loading.remove(), 500);
-  }
+  // Remove Loading Screen (safely) via UIManager
+  uiManager.removeLoadingScreen();
 
   // Start Loop
   animate();
@@ -208,6 +208,33 @@ function createPlayer() {
   world.createCollider(colliderDesc, playerBody);
 }
 
+/**
+ * Creates a collectible Coin
+ */
+function createCoin(x, y, z) {
+  const geometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffdd00,
+    metalness: 0.9,
+    roughness: 0.1,
+    emissive: 0xffaa00,
+    emissiveIntensity: 0.5,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.rotation.x = Math.PI / 2;
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  // We'll use distance-based collection for simplicity in this template,
+  // but we store it in an array for the animate loop to check.
+  coins.push({
+    mesh: mesh,
+    collected: false,
+    position: { x, y, z },
+  });
+}
+
 function handleInput(delta) {
   const velocity = playerBody.linvel();
   const translation = playerBody.translation();
@@ -281,6 +308,31 @@ function animate() {
 
   // Sync Mesh with Body
   player.position.copy(pos);
+
+  // Coin Collection & Animation
+  coins.forEach((coin, index) => {
+    if (coin.collected) return;
+
+    // Rotate
+    coin.mesh.rotation.y += delta * 3;
+
+    // Simple distance check for collection
+    const dx = pos.x - coin.position.x;
+    const dy = pos.y - coin.position.y;
+    const dz = pos.z - coin.position.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    if (dist < 1.0) {
+      coin.collected = true;
+      scene.remove(coin.mesh);
+      coinsCollected++;
+      
+      // Update UI via UIManager
+      uiManager.updateCoinCount(coinsCollected);
+
+      console.log(`Coin collected! Total: ${coinsCollected}`);
+    }
+  });
 
   // Sync Camera
   updateCamera(pos);

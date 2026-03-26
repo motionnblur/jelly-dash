@@ -1,0 +1,70 @@
+/* ui/styles.css */
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #050505;
+  color: white;
+  font-family: 'Outfit', sans-serif;
+}
+
+canvas {
+  display: block;
+}
+
+#overlay {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  pointer-events: none;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 10;
+}
+
+h1 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.controls {
+  margin-top: 10px;
+  font-weight: 300;
+  opacity: 0.8;
+}
+
+#coin-counter {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 10px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#coin-counter span {
+  color: #ffdd00;
+}
+
+#loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  font-size: 2rem;
+  transition: opacity 0.5s ease-out;
+}
