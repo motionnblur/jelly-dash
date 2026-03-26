@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
+import * as THREE from "three";
+import RAPIER from "@dimforge/rapier3d-compat";
 
 // Main Engine Components
 let scene, camera, renderer, world, clock;
@@ -13,238 +13,254 @@ const PLAYER_SPEED = 8;
 const JUMP_IMPULSE = 12;
 
 // Helper: Clean up existing renderer if it exists (for HMR)
-const existingCanvas = document.querySelector('canvas');
+const existingCanvas = document.querySelector("canvas");
 if (existingCanvas) {
-    existingCanvas.remove();
+  existingCanvas.remove();
 }
 
 async function init() {
-    // 1. Initialize Physics Engine (Rapier)
-    await RAPIER.init();
-    world = new RAPIER.World({ x: 0, y: GRAVITY, z: 0 });
+  // 1. Initialize Physics Engine (Rapier)
+  await RAPIER.init();
+  world = new RAPIER.World({ x: 0, y: GRAVITY, z: 0 });
 
-    // 2. Three.js Scene Setup
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a1020);
-    scene.fog = new THREE.Fog(0x0a1020, 20, 100);
+  // 2. Three.js Scene Setup
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a1020);
+  scene.fog = new THREE.Fog(0x0a1020, 20, 100);
 
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 5, 12);
-    camera.lookAt(0, 2, 0);
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000,
+  );
+  camera.position.set(0, 5, 12);
+  camera.lookAt(0, 2, 0);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
 
-    clock = new THREE.Clock();
+  clock = new THREE.Clock();
 
-    // 3. Lighting (Premium Feel)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
+  // 3. Lighting (Premium Feel)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambientLight);
 
-    const sun = new THREE.DirectionalLight(0xffddaa, 1.2);
-    sun.position.set(20, 40, 20);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.left = -50;
-    sun.shadow.camera.right = 50;
-    sun.shadow.camera.top = 50;
-    sun.shadow.camera.bottom = -50;
-    scene.add(sun);
+  const sun = new THREE.DirectionalLight(0xffddaa, 1.2);
+  sun.position.set(20, 40, 20);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
+  sun.shadow.camera.left = -50;
+  sun.shadow.camera.right = 50;
+  sun.shadow.camera.top = 50;
+  sun.shadow.camera.bottom = -50;
+  scene.add(sun);
 
-    // Subtle blue rim light from the front
-    const pointLight = new THREE.PointLight(0x00ccff, 1, 30);
-    pointLight.position.set(0, 5, 10);
-    scene.add(pointLight);
+  // Subtle blue rim light from the front
+  const pointLight = new THREE.PointLight(0x00ccff, 1, 30);
+  pointLight.position.set(0, 5, 10);
+  scene.add(pointLight);
 
-    // 4. Create Ground and Platforms
-    createGround();
-    createPlatform(5, 2, 0, 4, 0.5, 4, 0x00ff88);
-    createPlatform(-6, 4, 0, 4, 0.5, 4, 0xff3366);
-    createPlatform(10, 6, 0, 4, 0.5, 4, 0x3366ff);
+  // 4. Create Ground and Platforms
+  createGround();
+  createPlatform(5, 2, 0, 4, 0.5, 4, 0x00ff88);
+  createPlatform(-6, 4, 0, 4, 0.5, 4, 0xff3366);
+  createPlatform(10, 6, 0, 4, 0.5, 4, 0x3366ff);
 
-    // 5. Create Player
-    createPlayer();
+  // 5. Create Player
+  createPlayer();
 
-    // Event Listeners
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('resize', onWindowResize);
+  // Event Listeners
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("resize", onWindowResize);
 
-    // Remove Loading Screen (safely)
-    const loading = document.getElementById('loading');
-    if (loading) {
-        loading.style.opacity = 0;
-        setTimeout(() => loading.remove(), 500);
-    }
+  // Remove Loading Screen (safely)
+  const loading = document.getElementById("loading");
+  if (loading) {
+    loading.style.opacity = 0;
+    setTimeout(() => loading.remove(), 500);
+  }
 
-    // Start Loop
-    animate();
+  // Start Loop
+  animate();
 }
 
-function onKeyDown(e) { keys[e.code] = true; }
-function onKeyUp(e) { keys[e.code] = false; }
+function onKeyDown(e) {
+  keys[e.code] = true;
+}
+function onKeyUp(e) {
+  keys[e.code] = false;
+}
 
 /**
  * Creates a static ground
  */
 function createGround() {
-    const geometry = new THREE.BoxGeometry(200, 2, 20);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a2e,
-        roughness: 0.8,
-        metalness: 0.2
-    });
-    const groundMesh = new THREE.Mesh(geometry, material);
-    groundMesh.position.y = -1;
-    groundMesh.receiveShadow = true;
-    scene.add(groundMesh);
+  const geometry = new THREE.BoxGeometry(200, 2, 20);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x1a1a2e,
+    roughness: 0.8,
+    metalness: 0.2,
+  });
+  const groundMesh = new THREE.Mesh(geometry, material);
+  groundMesh.position.y = -1;
+  groundMesh.receiveShadow = true;
+  scene.add(groundMesh);
 
-    // Physics Ground
-    const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0);
-    const rigidBody = world.createRigidBody(groundDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(100, 1, 10);
-    world.createCollider(colliderDesc, rigidBody);
+  // Physics Ground
+  const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0);
+  const rigidBody = world.createRigidBody(groundDesc);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(100, 1, 10);
+  world.createCollider(colliderDesc, rigidBody);
 }
 
 /**
  * Generic Platform Creator
  */
 function createPlatform(x, y, z, w, h, d, color) {
-    const geometry = new THREE.BoxGeometry(w, h, d);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: color, 
-        emissive: color,
-        emissiveIntensity: 0.2
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
+  const geometry = new THREE.BoxGeometry(w, h, d);
+  const material = new THREE.MeshStandardMaterial({
+    color: color,
+    emissive: color,
+    emissiveIntensity: 0.2,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
 
-    // Physics Platform
-    const desc = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z);
-    const body = world.createRigidBody(desc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(w/2, h/2, d/2);
-    world.createCollider(colliderDesc, body);
+  // Physics Platform
+  const desc = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z);
+  const body = world.createRigidBody(desc);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2);
+  world.createCollider(colliderDesc, body);
 }
 
 /**
  * Creates the Player character
  */
 function createPlayer() {
-    // Mesh
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ 
-        color: 0xffdd00,
-        roughness: 0.5,
-        metalness: 0.8
-    });
-    player = new THREE.Mesh(geometry, material);
-    player.position.set(0, 1, 0);
-    player.castShadow = true;
-    scene.add(player);
+  // Mesh
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffdd00,
+    roughness: 0.5,
+    metalness: 0.8,
+  });
+  player = new THREE.Mesh(geometry, material);
+  player.position.set(0, 1, 0);
+  player.castShadow = true;
+  scene.add(player);
 
-    // Rigid Body
-    const playerDesc = RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(0, 5, 0)
-        .setCanSleep(false)
-        .enabledRotations(false, false, false); // Rotation locked for typical platformers
-    
-    playerBody = world.createRigidBody(playerDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
-    world.createCollider(colliderDesc, playerBody);
+  // Rigid Body
+  const playerDesc = RAPIER.RigidBodyDesc.dynamic()
+    .setTranslation(0, 5, 0)
+    .setCanSleep(false)
+    .enabledRotations(false, false, false); // Rotation locked for typical platformers
+
+  playerBody = world.createRigidBody(playerDesc);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+  world.createCollider(colliderDesc, playerBody);
 }
 
 function handleInput(delta) {
-    const velocity = playerBody.linvel();
-    const translation = playerBody.translation();
-    let moveX = 0;
+  const velocity = playerBody.linvel();
+  const translation = playerBody.translation();
+  let moveX = 0;
 
-    // 1. Raycast Ground Detection (ensure we don't hit the player itself)
-    // Cube height is 1, so the base is at -0.5. Scale ray down from slightly above base.
-    const ray = new RAPIER.Ray({ x: translation.x, y: translation.y - 0.4, z: translation.z }, { x: 0, y: -1, z: 0 });
-    
-    // castRay(ray, maxToi, solid, groups, filter_predicate, filter_collider, filter_rigid_body)
-    // We pass 'playerBody' as the last argument to EXCLUDE IT from the raycast results.
-    const hit = world.castRay(ray, 0.2, true, null, null, null, playerBody);
-    const isGrounded = hit !== null;
+  // 1. Raycast Ground Detection (ensure we don't hit the player itself)
+  // Cube height is 1, so the base is at -0.5. Scale ray down from slightly above base.
+  const ray = new RAPIER.Ray(
+    { x: translation.x, y: translation.y - 0.4, z: translation.z },
+    { x: 0, y: -1, z: 0 },
+  );
 
-    // Movement logic
-    if (keys['KeyA'] || keys['ArrowLeft']) moveX -= PLAYER_SPEED;
-    if (keys['KeyD'] || keys['ArrowRight']) moveX += PLAYER_SPEED;
+  // castRay(ray, maxToi, solid, groups, filter_predicate, filter_collider, filter_rigid_body)
+  // We pass 'playerBody' as the last argument to EXCLUDE IT from the raycast results.
+  const hit = world.castRay(ray, 0.2, true, null, null, null, playerBody);
+  const isGrounded = hit !== null;
 
-    // 2. Jumping System
-    // Initial Jump
-    if (keys['Space'] && isGrounded) {
-        playerBody.setLinvel({ x: velocity.x, y: JUMP_IMPULSE, z: velocity.z }, true);
-    }
+  // Movement logic
+  if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= PLAYER_SPEED;
+  if (keys["KeyD"] || keys["ArrowRight"]) moveX += PLAYER_SPEED;
 
-    // 3. Variable Jump Height (Mario-style)
-    // If we release space while moving upward, we cut the upward velocity
-    if (!keys['Space'] && velocity.y > 0) {
-        playerBody.setLinvel({ x: velocity.x, y: velocity.y * 0.9, z: velocity.z }, true);
-    }
+  // 2. Jumping System
+  // Initial Jump
+  if (keys["Space"] && isGrounded) {
+    playerBody.setLinvel(
+      { x: velocity.x, y: JUMP_IMPULSE, z: velocity.z },
+      true,
+    );
+  }
 
-    // Apply movement while preserving gravity's effect on Y
-    playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
+  // 3. Variable Jump Height (Mario-style)
+  // If we release space while moving upward, we cut the upward velocity
+  if (!keys["Space"] && velocity.y > 0) {
+    playerBody.setLinvel(
+      { x: velocity.x, y: velocity.y * 0.9, z: velocity.z },
+      true,
+    );
+  }
 
-    // Return current position for camera follow
-    return translation;
+  // Apply movement while preserving gravity's effect on Y
+  playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
+
+  // Return current position for camera follow
+  return translation;
 }
 
-
 function updateCamera(targetPos) {
-    // Smoother camera follow on X-axis and Y-axis (side scrolling)
-    const targetCamX = targetPos.x;
-    const targetCamY = targetPos.y + 4;
-    
-    camera.position.x += (targetCamX - camera.position.x) * 0.1;
-    camera.position.y += (targetCamY - camera.position.y) * 0.1;
-    camera.lookAt(camera.position.x, targetPos.y, 0);
+  // Smoother camera follow on X-axis and Y-axis (side scrolling)
+  const targetCamX = targetPos.x;
+  const targetCamY = targetPos.y + 4;
+
+  camera.position.x += (targetCamX - camera.position.x) * 0.1;
+  camera.position.y += (targetCamY - camera.position.y) * 0.1;
+  camera.lookAt(camera.position.x, targetPos.y, 0);
 }
 
 let animationId;
 function animate() {
-    animationId = requestAnimationFrame(animate);
+  animationId = requestAnimationFrame(animate);
 
-    const delta = clock.getDelta();
-    
-    // Step World (Fixed timestep)
-    world.step();
+  const delta = clock.getDelta();
 
-    // Character Logic
-    const pos = handleInput(delta);
-    
-    // Sync Mesh with Body
-    player.position.copy(pos);
-    
-    // Sync Camera
-    updateCamera(pos);
+  // Step World (Fixed timestep)
+  world.step();
 
-    renderer.render(scene, camera);
+  // Character Logic
+  const pos = handleInput(delta);
+
+  // Sync Mesh with Body
+  player.position.copy(pos);
+
+  // Sync Camera
+  updateCamera(pos);
+
+  renderer.render(scene, camera);
 }
 
 function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 // Support Vite Hot Module Replacement
 if (import.meta.hot) {
-    import.meta.hot.dispose(() => {
-        cancelAnimationFrame(animationId);
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
-        window.removeEventListener('resize', onWindowResize);
-    });
+  import.meta.hot.dispose(() => {
+    cancelAnimationFrame(animationId);
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("resize", onWindowResize);
+  });
 }
 
 init();
-
