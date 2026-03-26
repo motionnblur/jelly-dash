@@ -9,8 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "latest",
     "three": "latest",
-    "@dimforge/rapier3d-compat": "latest"
+    "wasmoon": "^1.16.0"
   },
   "devDependencies": {
     "vite": "latest"

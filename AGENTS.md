@@ -9,7 +9,8 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - **Rendering**: [Three.js](https://threejs.org/) (WebGL)
 - **Physics**: [@dimforge/rapier3d-compat](https://rapier.rs/) (WASM-based 3D physics)
 - **Bundler**: [Vite](https://vitejs.dev/)
-- **Language**: JavaScript (ESM)
+- **Scripting**: [Wasmoon](https://github.com/ceifa/wasmoon) (Lua 5.4 in WASM)
+- **Language**: JavaScript (ESM) + Lua
 
 ## 🏗 Key Systems
 
@@ -30,13 +31,22 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 - **Smoothing**: Uses linear interpolation (Lerp) to follow the player on both X and Y axes.
 - **Fixed Z**: Camera is positioned at `Z: 12` looking towards `Z: 0`.
 
-### 4. Hot Module Replacement (HMR)
+### 4. Lua Scripting System
+- **Runtime**: Initialized in `luaRuntime.js` using `wasmoon`.
+- **Interop**: JavaScript objects are exposed to Lua.
+    - `config`: Table containing `playerSpeed`, `jumpImpulse`, and `gravity`.
+    - `game`: Table containing functions like `createPlatform(x,y,z,w,h,d,color)` and `spawnPlayer(x,y,z)`.
+- **Workflow**: Scripts reside in the `scripts/` directory and are imported as raw text by Vite to be executed at runtime.
+
+### 5. Hot Module Replacement (HMR)
 - Custom HMR support is implemented in `main.js` using `import.meta.hot`.
 - **Cleanup**: On module reload, the previous `canvas` is removed, the `requestAnimationFrame` loop is cancelled, and window event listeners are detached to prevent memory leaks and duplicate renders.
 
 ## 📂 File Structure
 - `index.html`: Base entry point with UI overlay and CSS styles.
 - `main.js`: Monolithic entry point containing scene setup, physics loop, and player logic.
+- `luaRuntime.js`: Wrapper for the Wasmoon Lua VM.
+- `scripts/`: Directory for Lua game scripts (e.g., `init.lua`).
 - `package.json`: Vite configuration and dependency management.
 - `README.md`: User-facing instructions.
 

@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { luaRuntime } from "./luaRuntime";
+// Import Lua scripts as raw text (Vite feature)
+import initLua from "./scripts/init.lua?raw";
 
 // Main Engine Components
 let scene, camera, renderer, world, clock;
@@ -7,10 +10,12 @@ let player, playerBody;
 let platforms = [];
 let keys = {};
 
-// Physics constants
-const GRAVITY = -19.6; // Stronger for platforming
-const PLAYER_SPEED = 8;
-const JUMP_IMPULSE = 12;
+// Game Configuration (Exposed to Lua)
+const gameConfig = {
+  playerSpeed: 8,
+  jumpImpulse: 12,
+  gravity: -19.6,
+};
 
 // Helper: Clean up existing renderer if it exists (for HMR)
 const existingCanvas = document.querySelector("canvas");
@@ -21,7 +26,22 @@ if (existingCanvas) {
 async function init() {
   // 1. Initialize Physics Engine (Rapier)
   await RAPIER.init();
-  world = new RAPIER.World({ x: 0, y: GRAVITY, z: 0 });
+  world = new RAPIER.World({ x: 0, y: gameConfig.gravity, z: 0 });
+
+  // 2. Initialize Lua Scripting
+  await luaRuntime.init({
+    config: gameConfig,
+    game: {
+      createPlatform: (x, y, z, w, h, d, color) =>
+        createPlatform(x, y, z, w, h, d, color),
+      spawnPlayer: (x, y, z) => {
+        playerBody.setTranslation({ x, y, z }, true);
+      },
+    },
+  });
+
+  // Run initial Lua script
+  await luaRuntime.run(initLua);
 
   // 2. Three.js Scene Setup
   scene = new THREE.Scene();
@@ -188,14 +208,14 @@ function handleInput(delta) {
   const isGrounded = hit !== null;
 
   // Movement logic
-  if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= PLAYER_SPEED;
-  if (keys["KeyD"] || keys["ArrowRight"]) moveX += PLAYER_SPEED;
+  if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= gameConfig.playerSpeed;
+  if (keys["KeyD"] || keys["ArrowRight"]) moveX += gameConfig.playerSpeed;
 
   // 2. Jumping System
   // Initial Jump
   if (keys["Space"] && isGrounded) {
     playerBody.setLinvel(
-      { x: velocity.x, y: JUMP_IMPULSE, z: velocity.z },
+      { x: velocity.x, y: gameConfig.jumpImpulse, z: velocity.z },
       true,
     );
   }
