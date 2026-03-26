@@ -44,8 +44,10 @@ A performance-oriented 3D side-scrolling platformer template built with **Three.
 
 ## 📂 File Structure
 - `index.html`: Base entry point with UI overlay and CSS styles.
-- `main.js`: Monolithic entry point containing scene setup, physics loop, and player logic.
-- `luaRuntime.js`: Wrapper for the Wasmoon Lua VM.
+- `main.js`: Minimal entry point that boots the core engine.
+- `core/`: Core engine functionality.
+    - `Engine.js`: Main logic for rendering, physics, and game loop.
+    - `LuaRuntime.js`: Wrapper for the Wasmoon Lua VM.
 - `scripts/`: Directory for Lua game scripts (e.g., `init.lua`).
 - `package.json`: Vite configuration and dependency management.
 - `README.md`: User-facing instructions.

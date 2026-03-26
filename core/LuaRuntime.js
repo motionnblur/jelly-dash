@@ -31,6 +31,18 @@ export class LuaRuntime {
     }
   }
 
+  callFunction(name, ...args) {
+    if (!this.isReady || !this.lua) return;
+    const fn = this.lua.global.get(name);
+    if (typeof fn === "function") {
+      try {
+        return fn(...args);
+      } catch (e) {
+        console.error(`Error calling Lua function '${name}':`, e);
+      }
+    }
+  }
+
   setGlobal(name, value) {
     if (this.lua) {
       this.lua.global.set(name, value);
