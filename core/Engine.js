@@ -16,6 +16,7 @@ let platforms = [];
 let coins = [];
 let coinsCollected = 0;
 let keys = {};
+let particles = [];
 
 // Game Configuration (Exposed to Lua)
 const gameConfig = {
@@ -241,6 +242,37 @@ function createCoin(x, y, z) {
   });
 }
 
+/**
+ * Creates visual particles at a position
+ */
+function spawnParticles(x, y, z, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const material = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: 0.5,
+      transparent: true,
+    });
+    const particle = new THREE.Mesh(geometry, material);
+    particle.position.set(x, y, z);
+
+    // Random velocity
+    const velocity = new THREE.Vector3(
+      (Math.random() - 0.5) * 6,
+      Math.random() * 8, // Burst upwards
+      (Math.random() - 0.5) * 4,
+    );
+
+    scene.add(particle);
+    particles.push({
+      mesh: particle,
+      velocity: velocity,
+      life: 1.0, // Seconds
+    });
+  }
+}
+
 function handleInput(delta) {
   const velocity = playerBody.linvel();
   const translation = playerBody.translation();
@@ -320,7 +352,7 @@ function animate() {
     if (coin.collected) return;
 
     // Rotate
-    coin.mesh.rotation.y += delta * 3;
+    coin.mesh.rotation.z += delta * 3;
 
     // Simple distance check for collection
     const dx = pos.x - coin.position.x;
@@ -332,13 +364,39 @@ function animate() {
       coin.collected = true;
       scene.remove(coin.mesh);
       coinsCollected++;
-      
+
       // Update UI via UIManager
       uiManager.updateCoinCount(coinsCollected);
+
+      // Spawn Particles
+      spawnParticles(
+        coin.position.x,
+        coin.position.y,
+        coin.position.z,
+        0xffdd00,
+      );
 
       console.log(`Coin collected! Total: ${coinsCollected}`);
     }
   });
+
+  // Update Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= delta * 1.5;
+
+    // Apply gravity to particles
+    p.velocity.y += gameConfig.gravity * delta;
+    p.mesh.position.addScaledVector(p.velocity, delta);
+    p.mesh.material.opacity = p.life;
+
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      particles.splice(i, 1);
+    }
+  }
 
   // Sync Camera
   updateCamera(pos);
