@@ -154,7 +154,9 @@ function createGround() {
   // Physics Ground
   const groundDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0);
   const rigidBody = world.createRigidBody(groundDesc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(100, 1, 10);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(100, 1, 10)
+    .setFriction(0)
+    .setRestitution(0);
   world.createCollider(colliderDesc, rigidBody);
 }
 
@@ -177,7 +179,9 @@ function createPlatform(x, y, z, w, h, d, color) {
   // Physics Platform
   const desc = RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z);
   const body = world.createRigidBody(desc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2)
+    .setFriction(0)
+    .setRestitution(0);
   world.createCollider(colliderDesc, body);
 }
 
@@ -204,7 +208,9 @@ function createPlayer() {
     .enabledRotations(false, false, false); // Rotation locked for typical platformers
 
   playerBody = world.createRigidBody(playerDesc);
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
+    .setFriction(0)
+    .setRestitution(0);
   world.createCollider(colliderDesc, playerBody);
 }
 
