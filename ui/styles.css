@@ -3,7 +3,7 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #050505;
+  background-color: #b9ddff;
   color: white;
   font-family: 'Outfit', sans-serif;
 }
@@ -60,7 +60,7 @@ h1 {
   left: 0;
   width: 100%;
   height: 100%;
-  background: #000;
+  background: linear-gradient(180deg, #d8f0ff 0%, #b9ddff 100%);
   display: flex;
   align-items: center;
   justify-content: center;

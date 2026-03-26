@@ -17,6 +17,10 @@ let coins = [];
 let coinsCollected = 0;
 let keys = {};
 let particles = [];
+
+const SKY_COLOR = 0xb9ddff;
+const FOG_COLOR = 0xd6ecff;
+
 let playerState = {
   lastVelX: 0,
   particleTimer: 0,
@@ -53,8 +57,8 @@ async function init() {
 
   // 2. Three.js Scene Setup (MUST happen before Lua runs world-creation code)
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a1020);
-  scene.fog = new THREE.Fog(0x0a1020, 20, 100);
+  scene.background = new THREE.Color(SKY_COLOR);
+  scene.fog = new THREE.Fog(FOG_COLOR, 18, 95);
 
   camera = new THREE.PerspectiveCamera(
     75,
@@ -68,6 +72,7 @@ async function init() {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(SKY_COLOR, 1);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.body.appendChild(renderer.domElement);
