@@ -63,6 +63,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 ### 5. Platform Model
 - All route platforms are kinematic hexagonal prisms.
 - Platforms sink slightly while stepped on and lerp back when cleared.
+- From level 6 onward, some non-final platforms also oscillate vertically in a deterministic loop.
 - The final platform is visually distinct:
   - gold material
   - ring/beacon decoration
@@ -186,7 +187,8 @@ maxY = lerp(3.7, 7.8, softenedProgress) - respiteOffset
 
 Interpretation:
 - later levels use more platforms
-- later levels use smaller platforms
+- smaller non-final platforms begin appearing from level 3 onward, and the shrink amount scales up through the campaign
+- respites get a softened version of the shrink so they still feel easier than adjacent routes
 - later levels widen gaps
 - later levels allow stronger vertical shape changes
 - later levels place the route higher in the frame
@@ -247,10 +249,10 @@ gap = max(3.45, (gapBase + gapNoise) * gapScale)
 - first step uses `gap * 0.96`
 - later steps use full `gap`
 
-3. compute platform diameter with small random wobble:
+3. compute platform diameter with small random wobble, then apply a campaign-scaled shrink to non-final platforms from level 3 onward:
 
 ```js
-diameter = clamp(platformDiameter + randomOffset, 2.45, 4.6)
+diameter = clamp(platformDiameter + randomOffset - sizeShrink, 1.95, 4.6)
 ```
 
 4. update `y` using the selected route pattern
@@ -303,6 +305,7 @@ Difficulty growth is mostly from four sources:
 - more walking distance between jumps
 - smaller landing surfaces
 - bigger and less predictable vertical shape changes
+- a subset of non-final platforms also move vertically in looping motion from level 6 onward
 
 The generator does **not** currently add moving hazards, enemies, or fake branch routes. Difficulty is still purely traversal and resource pressure.
 

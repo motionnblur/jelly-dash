@@ -1024,11 +1024,14 @@ function createLayoutCandidate(config) {
     const gap = Math.max(3.45, (gapBase + gapNoise) * gapScale);
     x += index === 0 ? gap * 0.96 : gap;
 
-    const diameter = clamp(
-      platformDiameter + (rng() * 2 - 1) * 0.32 + (index % 3 === 0 ? 0.06 : 0),
-      2.45,
-      4.6,
-    );
+    const diameterNoise = (rng() * 2 - 1) * 0.32 + (index % 3 === 0 ? 0.06 : 0);
+    const sizeShrinkProgress = clamp((level - 3) / 9, 0, 1);
+    const sizeShrink =
+      level >= 3 && index > 0
+        ? (0.06 + rng() * 0.1 + sizeShrinkProgress * 0.16 + (index % 2 === 1 ? 0.05 : 0)) *
+          (isRespite ? 0.72 : 1)
+        : 0;
+    const diameter = clamp(platformDiameter + diameterNoise - sizeShrink, 1.95, 4.6);
 
     y = computePlatformHeight({
       index,
