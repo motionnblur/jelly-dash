@@ -670,6 +670,11 @@ function choosePlatformShape(rng) {
 
 function createPlatform(x, y, z, w, h, d, color, options = {}) {
   const radius = Math.max(w, d) / 2;
+  const isDestroyable = !!options.isDestroyable;
+  const hitsToBreak = isDestroyable
+    ? Math.max(1, Math.round(options.hitsToBreak ?? 2))
+    : 0;
+  const platformColor = isDestroyable ? 0xffffff : color;
   const shapeSpec = getPlatformShapeSpec(
     options.shape ?? options.definition?.shape,
   );
@@ -686,8 +691,8 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
     shapeSpec.sides,
   );
   const material = new THREE.MeshStandardMaterial({
-    color,
-    emissive: options.isFinal ? 0xffd166 : color,
+    color: platformColor,
+    emissive: options.isFinal ? 0xffd166 : platformColor,
     emissiveIntensity: options.isFinal ? 0.55 : 0.24,
     metalness: options.isFinal ? 0.62 : 0.35,
     roughness: options.isFinal ? 0.18 : 0.26,
@@ -766,6 +771,10 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
     swingAmplitude: options.swingAmplitude ?? 0,
     swingSpeed: options.swingSpeed ?? 0,
     isFinal: !!options.isFinal,
+    isDestroyable,
+    hitsToBreak,
+    hitsRemaining: hitsToBreak,
+    wasSteppedOn: false,
     shape: shapeSpec.shape,
     rotationY,
     definition: options.definition ?? null,
@@ -777,6 +786,41 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
   }
 
   return platform;
+}
+
+function destroyPlatform(platform) {
+  if (!platform || platform.isFinal) {
+    return;
+  }
+
+  const meshPosition = platform.mesh?.position;
+  if (meshPosition) {
+    spawnParticles(
+      meshPosition.x,
+      meshPosition.y + 0.2,
+      meshPosition.z,
+      0x70e1ff,
+      16,
+      1.25,
+      { lifeDecay: 0.5 },
+    );
+  }
+
+  if (platform.mesh) {
+    scene.remove(platform.mesh);
+    platform.mesh.geometry?.dispose?.();
+    if (Array.isArray(platform.mesh.material)) {
+      platform.mesh.material.forEach((material) => material?.dispose?.());
+    } else {
+      platform.mesh.material?.dispose?.();
+    }
+  }
+  world.removeRigidBody(platform.body);
+
+  const index = platforms.indexOf(platform);
+  if (index >= 0) {
+    platforms.splice(index, 1);
+  }
 }
 
 function createPlayer() {
@@ -1104,6 +1148,8 @@ function buildLevel(levelNumber) {
         swingSpeed: definition.swingSpeed,
         bobPhase: definition.bobPhase,
         rotationY: definition.rotationY,
+        isDestroyable: definition.isDestroyable,
+        hitsToBreak: definition.hitsToBreak,
       },
     );
   }
@@ -1271,9 +1317,24 @@ function updateParticles(delta) {
 }
 
 function updatePlatforms(groundHitHandle, delta) {
+  const platformsToDestroy = [];
+
   for (const platform of platforms) {
     const isSteppedOn =
       groundHitHandle !== null && groundHitHandle === platform.collider.handle;
+    const wasSteppedOn = !!platform.wasSteppedOn;
+
+    if (isSteppedOn && !wasSteppedOn && platform.isDestroyable && !platform.isFinal) {
+      platform.hitsRemaining = Math.max(0, platform.hitsRemaining - 1);
+      if (platform.hitsRemaining <= 0) {
+        platformsToDestroy.push(platform);
+        platform.wasSteppedOn = isSteppedOn;
+        continue;
+      }
+    }
+
+    platform.wasSteppedOn = isSteppedOn;
+
     const sinkDepth = platform.isFinal ? 0.42 : 0.58;
     const sinkSpeed = platform.isFinal ? 0.08 : 0.1;
     const returnSpeed = platform.isFinal ? 0.045 : 0.03;
@@ -1319,6 +1380,10 @@ function updatePlatforms(groundHitHandle, delta) {
     });
     platform.mesh.position.x = platform.currentX;
     platform.mesh.position.y = platform.currentY;
+  }
+
+  for (const platform of platformsToDestroy) {
+    destroyPlatform(platform);
   }
 }
 
@@ -1586,6 +1651,12 @@ function createLayoutCandidate(config) {
     const rawSwingSpeed = 0.55 + rng() * 0.65;
     const hasSwing =
       hasSwingingPlatforms && !isRespite && index > 0 && index % 2 === 1;
+    const isDestroyable =
+      !isRespite &&
+      index > 0 &&
+      !hasSwing &&
+      level >= 4 &&
+      rng() < 0.2 + Math.min(0.12, progress * 0.12);
 
     layout.push({
       x,
@@ -1599,6 +1670,8 @@ function createLayoutCandidate(config) {
       isFinal: false,
       shape: choosePlatformShape(rng),
       rotationY: rng() * Math.PI * 2,
+      isDestroyable,
+      hitsToBreak: isDestroyable ? 2 : 0,
       bobPhase: ((level * 31 + index * 17) % 360) * (Math.PI / 180),
       motionAmplitude:
         hasWavingPlatforms && !isRespite && index > 0
@@ -1643,6 +1716,8 @@ function createLayoutCandidate(config) {
     isFinal: true,
     shape: "hex",
     rotationY: rng() * Math.PI * 2,
+    isDestroyable: false,
+    hitsToBreak: 0,
     bobPhase: ((level * 31 + platformCount * 17 + 11) % 360) * (Math.PI / 180),
     motionAmplitude: 0,
     motionSpeed: 0,
@@ -1781,6 +1856,8 @@ function setupTestingHooks() {
         final: platform.isFinal,
         shape: platform.shape,
         rotationY: Number(platform.rotationY.toFixed(3)),
+        destroyable: platform.isDestroyable,
+        hitsRemaining: platform.hitsRemaining,
         motionAmplitude: Number(platform.motionAmplitude.toFixed(3)),
         motionSpeed: Number(platform.motionSpeed.toFixed(3)),
         swingAmplitude: Number(platform.swingAmplitude.toFixed(3)),
