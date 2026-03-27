@@ -2,6 +2,7 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
 import { uiManager } from "../ui/UIManager";
+import { createRocketSoundController } from "../scripts/sound/rocketSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 
@@ -21,13 +22,7 @@ let playerBody;
 let playerCollider;
 let animationId;
 let spaceBackdropGroup;
-let rocketSound;
-let rocketSoundIsPlaying = false;
-
-const ROCKET_SOUND_URL = new URL(
-  "../assets/sounds/rocket-sound.mp3",
-  import.meta.url,
-).href;
+let rocketSoundController;
 
 const platforms = [];
 const particles = [];
@@ -186,7 +181,7 @@ function applyPlayerFrameState(nextState = {}) {
 
   if (typeof nextState.isRocketActive === "boolean") {
     playerState.isRocketActive = nextState.isRocketActive;
-    syncRocketSound(playerState.isRocketActive);
+    rocketSoundController?.sync(playerState.isRocketActive);
   }
 
   if (typeof nextState.rocketSpin === "number") {
@@ -293,40 +288,6 @@ function applyPlayerFrameState(nextState = {}) {
   uiManager.updateRocket(playerState.rocketLevel, playerState.isRocketActive);
 }
 
-function syncRocketSound(isActive) {
-  if (!rocketSound) {
-    return;
-  }
-
-  if (isActive) {
-    rocketSound.loop = true;
-
-    if (!rocketSoundIsPlaying) {
-      try {
-        rocketSound.currentTime = 0;
-        const playback = rocketSound.play();
-        if (playback && typeof playback.catch === "function") {
-          playback.catch(() => {});
-        }
-        rocketSoundIsPlaying = true;
-      } catch {
-        // Ignore transient playback failures when the browser blocks audio.
-      }
-    }
-    return;
-  }
-
-  if (rocketSoundIsPlaying) {
-    try {
-      rocketSound.pause();
-      rocketSound.currentTime = 0;
-    } catch {
-      // Ignore transient playback failures when the browser blocks audio.
-    }
-    rocketSoundIsPlaying = false;
-  }
-}
-
 const existingCanvas = document.querySelector("canvas");
 if (existingCanvas) {
   existingCanvas.remove();
@@ -355,10 +316,7 @@ async function init() {
   renderer.setClearColor(SKY_COLOR, 1);
   document.body.appendChild(renderer.domElement);
 
-  rocketSound = new Audio(ROCKET_SOUND_URL);
-  rocketSound.preload = "auto";
-  rocketSound.volume = 0.6;
-  rocketSound.loop = true;
+  rocketSoundController = createRocketSoundController();
 
   clock = new THREE.Clock();
 

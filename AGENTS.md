@@ -22,6 +22,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - level generation
   - level progression
   - platform creation and animation
+  - sound controller wiring
   - deterministic test hooks
 - `scripts/player/main.lua` owns the player controller:
   - loader for the `scripts/player/` module set
@@ -58,7 +59,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Rocket meshes dynamically sync their X position to the player's current shader-driven scale (`uScale.xz`).
 - Thruster visuals include a red glow and red exhaustion particles.
 - `assets/sounds/rocket-sound.mp3` plays while rockets are active and is paused + rewound when thrust stops.
-- Audio playback is owned by `core/Engine.js`, which preloads the clip through Vite and keeps the loop synchronized with `playerState.isRocketActive`.
+- Audio playback is owned by `scripts/sound/rocketSound.js`; `core/Engine.js` only forwards `playerState.isRocketActive` into the controller.
 
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
@@ -379,6 +380,8 @@ Use these when validating layout generation or progression through Playwright or
   - HUD / overlay styling
 - `assets/sounds/rocket-sound.mp3`
   - rocket thrust audio cue used while Shift is active
+- `scripts/sound/rocketSound.js`
+  - rocket thrust audio controller
 - `scripts/shared/world.lua`
   - base-world creation only
 - `scripts/player/main.lua`
