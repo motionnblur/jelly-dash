@@ -997,6 +997,27 @@ h1, h2 {
   background: rgba(92, 255, 120, 0.18);
   border-color: var(--gel);
 }
+.ed-action-btn--pickup-health {
+  color: #44ff88;
+  border-color: rgba(68, 255, 136, 0.3);
+  background: rgba(68, 255, 136, 0.08);
+}
+.ed-action-btn--pickup-health:hover {
+  background: rgba(68, 255, 136, 0.18);
+  border-color: #44ff88;
+}
+.ed-action-btn--pickup-rocket {
+  color: #ff4433;
+  border-color: rgba(255, 68, 51, 0.3);
+  background: rgba(255, 68, 51, 0.08);
+}
+.ed-action-btn--pickup-rocket:hover {
+  background: rgba(255, 68, 51, 0.18);
+  border-color: #ff4433;
+}
+.ed-item--pickup-health .ed-item-icon { color: #44ff88; }
+.ed-item--pickup-rocket .ed-item-icon { color: #ff4433; }
+.editor-pickup-list { max-height: 100px; }
 
 /* Properties panel */
 .editor-properties {

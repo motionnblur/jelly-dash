@@ -80,6 +80,7 @@ export function initLevelEditor({
   camera,
   renderer,
   platforms,
+  pickups,
   levelState,
   gameplayState,
   clock,
@@ -91,14 +92,18 @@ export function initLevelEditor({
   let isOpen        = false;
   let isTestMode    = false;
   let selectedIndex = -1;
+  let selectedType  = null; // "platform" | "pickup" | null
 
   // ── History ────────────────────────────────────────────────────────────────
   const history = [];
 
   function pushHistory() {
-    const layout = levelState.currentProfile?.layout;
-    if (!layout) return;
-    history.push(JSON.parse(JSON.stringify(layout)));
+    const profile = levelState.currentProfile;
+    if (!profile) return;
+    history.push({
+      layout:  JSON.parse(JSON.stringify(profile.layout)),
+      pickups: JSON.parse(JSON.stringify(profile.pickups ?? [])),
+    });
     if (history.length > MAX_HISTORY) history.shift();
   }
 
@@ -107,23 +112,40 @@ export function initLevelEditor({
     const snapshot = history.pop();
     if (!levelState.currentProfile) return;
 
-    // Restore layout in-place so the object reference stays valid
+    // Restore layout in-place
     levelState.currentProfile.layout.length = 0;
-    for (const d of snapshot) levelState.currentProfile.layout.push(d);
+    for (const d of snapshot.layout) levelState.currentProfile.layout.push(d);
 
-    // Clamp selection to new length
-    if (selectedIndex >= levelState.currentProfile.layout.length) {
+    // Restore pickups in-place
+    if (!levelState.currentProfile.pickups) levelState.currentProfile.pickups = [];
+    levelState.currentProfile.pickups.length = 0;
+    for (const p of snapshot.pickups) levelState.currentProfile.pickups.push(p);
+
+    // Clamp selection to new lengths
+    if (selectedType === "platform" && selectedIndex >= levelState.currentProfile.layout.length) {
       clearHighlight();
       selectedIndex = -1;
+      selectedType = null;
+      gizmo.visible = false;
+    } else if (selectedType === "pickup" && selectedIndex >= levelState.currentProfile.pickups.length) {
+      clearHighlight();
+      selectedIndex = -1;
+      selectedType = null;
       gizmo.visible = false;
     }
 
-    // Rebuild platforms (bypass rebuild() to avoid side-effects)
+    // Rebuild (bypass rebuild() to avoid side-effects)
     rebuildCurrentLevelPlatforms();
 
     // Re-apply selection highlight if still valid
-    if (selectedIndex >= 0 && platforms[selectedIndex]) {
+    if (selectedType === "platform" && selectedIndex >= 0 && platforms[selectedIndex]) {
       const mat = platforms[selectedIndex].mesh.material;
+      mat._edOrig  = mat.emissive.getHex();
+      mat._edOrigI = mat.emissiveIntensity;
+      mat.emissive.setHex(0x00e5ff);
+      mat.emissiveIntensity = 1.0;
+    } else if (selectedType === "pickup" && selectedIndex >= 0 && pickups[selectedIndex]) {
+      const mat = pickups[selectedIndex].mesh.material;
       mat._edOrig  = mat.emissive.getHex();
       mat._edOrigI = mat.emissiveIntensity;
       mat.emissive.setHex(0x00e5ff);
@@ -131,6 +153,7 @@ export function initLevelEditor({
     }
 
     renderPlatformList();
+    renderPickupList();
     renderProperties();
     placeGizmo();
   }
@@ -160,20 +183,23 @@ export function initLevelEditor({
   const { group: gizmo, mats: gizmoMats, meshes: gizmoMeshes } = buildGizmo(scene);
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
-  const fab            = document.getElementById("editor-fab");
-  const panel          = document.getElementById("level-editor");
-  const closeBtn       = document.getElementById("editor-close-btn");
-  const platformListEl = document.getElementById("editor-platform-list");
-  const propertiesEl   = document.getElementById("editor-properties");
-  const addBtn         = document.getElementById("editor-add-btn");
-  const deleteBtn      = document.getElementById("editor-delete-btn");
-  const exportBtn      = document.getElementById("editor-export-btn");
-  const undoBtn        = document.getElementById("editor-undo-btn");
-  const testBtn        = document.getElementById("editor-test-btn");
-  const stopTestBtn    = document.getElementById("editor-stop-test");
-  const prevLvlBtn     = document.getElementById("editor-prev-level");
-  const nextLvlBtn     = document.getElementById("editor-next-level");
-  const levelLabelEl   = document.getElementById("editor-level-label");
+  const fab              = document.getElementById("editor-fab");
+  const panel            = document.getElementById("level-editor");
+  const closeBtn         = document.getElementById("editor-close-btn");
+  const platformListEl   = document.getElementById("editor-platform-list");
+  const pickupListEl     = document.getElementById("editor-pickup-list");
+  const propertiesEl     = document.getElementById("editor-properties");
+  const addBtn           = document.getElementById("editor-add-btn");
+  const deleteBtn        = document.getElementById("editor-delete-btn");
+  const exportBtn        = document.getElementById("editor-export-btn");
+  const undoBtn          = document.getElementById("editor-undo-btn");
+  const testBtn          = document.getElementById("editor-test-btn");
+  const stopTestBtn      = document.getElementById("editor-stop-test");
+  const prevLvlBtn       = document.getElementById("editor-prev-level");
+  const nextLvlBtn       = document.getElementById("editor-next-level");
+  const levelLabelEl     = document.getElementById("editor-level-label");
+  const addHealthPickupBtn = document.getElementById("editor-add-health-btn");
+  const addRocketPickupBtn = document.getElementById("editor-add-rocket-btn");
 
   // ── Game UI elements to hide while editor is open ─────────────────────────
   const gameHudEls = [
@@ -211,6 +237,7 @@ export function initLevelEditor({
 
     refreshLevelLabel();
     renderPlatformList();
+    renderPickupList();
     renderProperties();
     syncOrbitCamera();
 
@@ -240,6 +267,7 @@ export function initLevelEditor({
 
     clearHighlight();
     selectedIndex = -1;
+    selectedType  = null;
     gizmo.visible = false;
     history.length = 0;
 
@@ -368,6 +396,7 @@ export function initLevelEditor({
     history.length = 0; // history is per-level
     refreshLevelLabel();
     renderPlatformList();
+    renderPickupList();
     renderProperties();
     if (platforms.length > 0) {
       let sumY = 0;
@@ -397,7 +426,7 @@ export function initLevelEditor({
     platformListEl.innerHTML = "";
     layout.forEach((def, i) => {
       const el   = document.createElement("div");
-      el.className = "ed-item" + (i === selectedIndex ? " ed-item--sel" : "");
+      el.className = "ed-item" + (selectedType === "platform" && i === selectedIndex ? " ed-item--sel" : "");
       const icon = def.isFinal ? "★"
         : def.shape === "triangle" ? "▲"
         : def.shape === "square"   ? "■" : "⬡";
@@ -411,10 +440,38 @@ export function initLevelEditor({
     });
   }
 
+  function renderPickupList() {
+    if (!pickupListEl) return;
+    const defs = levelState.currentProfile?.pickups ?? [];
+    pickupListEl.innerHTML = "";
+    defs.forEach((def, i) => {
+      const el = document.createElement("div");
+      const isHealth = def.type === "health";
+      const typeClass = isHealth ? "ed-item--pickup-health" : "ed-item--pickup-rocket";
+      el.className = "ed-item " + typeClass + (selectedType === "pickup" && i === selectedIndex ? " ed-item--sel" : "");
+      const icon = isHealth ? "⊕" : "▲";
+      const name = isHealth ? "Health" : "Rocket";
+      el.innerHTML = `
+        <span class="ed-item-icon">${icon}</span>
+        <span class="ed-item-name">${name} Pickup</span>
+        <span class="ed-item-pos">(${def.x.toFixed(1)}, ${def.y.toFixed(1)})</span>`;
+      el.addEventListener("click", () => selectPickup(i));
+      pickupListEl.appendChild(el);
+    });
+  }
+
   // ── Selection + gizmo ─────────────────────────────────────────────────────
   function clearHighlight() {
-    if (selectedIndex >= 0 && platforms[selectedIndex]) {
+    if (selectedType === "platform" && selectedIndex >= 0 && platforms[selectedIndex]) {
       const mat = platforms[selectedIndex].mesh.material;
+      if (mat._edOrig !== undefined) {
+        mat.emissive.setHex(mat._edOrig);
+        mat.emissiveIntensity = mat._edOrigI;
+        delete mat._edOrig;
+        delete mat._edOrigI;
+      }
+    } else if (selectedType === "pickup" && selectedIndex >= 0 && pickups[selectedIndex]) {
+      const mat = pickups[selectedIndex].mesh.material;
       if (mat._edOrig !== undefined) {
         mat.emissive.setHex(mat._edOrig);
         mat.emissiveIntensity = mat._edOrigI;
@@ -427,12 +484,14 @@ export function initLevelEditor({
   function resetSelection() {
     clearHighlight();
     selectedIndex = -1;
+    selectedType  = null;
     gizmo.visible = false;
   }
 
   function selectPlatform(index) {
     clearHighlight();
     selectedIndex = index;
+    selectedType  = "platform";
     if (platforms[index]) {
       const mat = platforms[index].mesh.material;
       mat._edOrig  = mat.emissive.getHex();
@@ -441,13 +500,39 @@ export function initLevelEditor({
       mat.emissiveIntensity = 1.0;
     }
     renderPlatformList();
+    renderPickupList();
+    renderProperties();
+    placeGizmo();
+  }
+
+  function selectPickup(index) {
+    clearHighlight();
+    selectedIndex = index;
+    selectedType  = "pickup";
+    if (pickups[index]) {
+      const mat = pickups[index].mesh.material;
+      mat._edOrig  = mat.emissive.getHex();
+      mat._edOrigI = mat.emissiveIntensity;
+      mat.emissive.setHex(0x00e5ff);
+      mat.emissiveIntensity = 1.0;
+    }
+    renderPlatformList();
+    renderPickupList();
     renderProperties();
     placeGizmo();
   }
 
   function placeGizmo() {
-    if (selectedIndex < 0 || !platforms[selectedIndex]) { gizmo.visible = false; return; }
-    gizmo.position.copy(platforms[selectedIndex].mesh.position);
+    if (selectedIndex < 0) { gizmo.visible = false; return; }
+    if (selectedType === "platform") {
+      if (!platforms[selectedIndex]) { gizmo.visible = false; return; }
+      gizmo.position.copy(platforms[selectedIndex].mesh.position);
+    } else if (selectedType === "pickup") {
+      if (!pickups[selectedIndex]) { gizmo.visible = false; return; }
+      gizmo.position.copy(pickups[selectedIndex].mesh.position);
+    } else {
+      gizmo.visible = false; return;
+    }
     gizmo.visible = true;
     scaleGizmo();
   }
@@ -459,9 +544,32 @@ export function initLevelEditor({
 
   // ── Properties panel ───────────────────────────────────────────────────────
   function renderProperties() {
+    if (selectedType === "pickup") {
+      const def = levelState.currentProfile?.pickups?.[selectedIndex];
+      if (!def) {
+        propertiesEl.innerHTML = '<div class="ed-no-sel">Click a platform or pickup to edit</div>';
+        return;
+      }
+      const isHealth = def.type === "health";
+      const typeLabel = isHealth ? "HEALTH PICKUP" : "ROCKET PICKUP";
+      const typeColor = isHealth ? "#44ff88" : "#ff4433";
+      const amountPct = Math.round((def.amount ?? (isHealth ? 0.25 : 0.30)) * 100);
+      const amountLabel = isHealth ? "HP Restore %" : "Fuel Restore %";
+      propertiesEl.innerHTML = `
+        <div class="ed-section" style="color:${typeColor}">${typeLabel}</div>
+        <div class="ed-section">POSITION</div>
+        <div class="ed-row"><label class="ed-lbl ed-lbl--x">X</label><input class="ed-num" id="p-x" type="number" value="${def.x.toFixed(2)}" step="0.25"></div>
+        <div class="ed-row"><label class="ed-lbl ed-lbl--y">Y</label><input class="ed-num" id="p-y" type="number" value="${def.y.toFixed(2)}" step="0.25"></div>
+        <div class="ed-row"><label class="ed-lbl ed-lbl--z">Z</label><input class="ed-num" id="p-z" type="number" value="${def.z.toFixed(2)}" step="0.25"></div>
+        <div class="ed-section">VALUE</div>
+        <div class="ed-row"><label>${amountLabel}</label><input class="ed-num" id="p-amount" type="number" value="${amountPct}" step="5" min="1" max="100"></div>`;
+      bindPickupPropertyEvents(def);
+      return;
+    }
+
     const def = selectedIndex >= 0 ? levelState.currentProfile?.layout[selectedIndex] : null;
     if (!def) {
-      propertiesEl.innerHTML = '<div class="ed-no-sel">Click a platform to edit</div>';
+      propertiesEl.innerHTML = '<div class="ed-no-sel">Click a platform or pickup to edit</div>';
       return;
     }
     const colorHex = "#" + def.color.toString(16).padStart(6, "0");
@@ -499,6 +607,21 @@ export function initLevelEditor({
       <div class="ed-row ed-row--check"><label>Destroyable</label><input class="ed-chk" id="p-destroy" type="checkbox" ${def.isDestroyable?"checked":""}></div>
       <div class="ed-row"><label>Hits to break</label><input class="ed-num" id="p-hits" type="number" value="${def.hitsToBreak??2}" step="1" min="1"></div>`;
     bindPropertyEvents(def);
+  }
+
+  function bindPickupPropertyEvents(def) {
+    function n(id, key, transform) {
+      document.getElementById(id)?.addEventListener("change", (e) => {
+        pushHistory();
+        def[key] = transform ? transform(e.target.value) : parseFloat(e.target.value);
+        rebuild();
+      });
+    }
+    n("p-x", "x");
+    n("p-y", "y");
+    n("p-z", "z");
+    // amount stored as 0–1, displayed as 0–100 %
+    n("p-amount", "amount", (v) => Math.max(0.01, Math.min(1.0, parseFloat(v) / 100)));
   }
 
   function bindPropertyEvents(def) {
@@ -550,17 +673,28 @@ export function initLevelEditor({
 
   // Rebuild without pushing history — callers are responsible for pushing beforehand
   function rebuild() {
-    const prev = selectedIndex;
+    const prevIndex = selectedIndex;
+    const prevType  = selectedType;
     rebuildCurrentLevelPlatforms();
-    if (prev >= 0 && platforms[prev]) {
-      selectedIndex = prev;
-      const mat = platforms[prev].mesh.material;
+    if (prevType === "platform" && prevIndex >= 0 && platforms[prevIndex]) {
+      selectedIndex = prevIndex;
+      selectedType  = prevType;
+      const mat = platforms[prevIndex].mesh.material;
+      mat._edOrig  = mat.emissive.getHex();
+      mat._edOrigI = mat.emissiveIntensity;
+      mat.emissive.setHex(0x00e5ff);
+      mat.emissiveIntensity = 1.0;
+    } else if (prevType === "pickup" && prevIndex >= 0 && pickups[prevIndex]) {
+      selectedIndex = prevIndex;
+      selectedType  = prevType;
+      const mat = pickups[prevIndex].mesh.material;
       mat._edOrig  = mat.emissive.getHex();
       mat._edOrigI = mat.emissiveIntensity;
       mat.emissive.setHex(0x00e5ff);
       mat.emissiveIntensity = 1.0;
     }
     renderPlatformList();
+    renderPickupList();
     placeGizmo();
   }
 
@@ -581,28 +715,81 @@ export function initLevelEditor({
 
   deleteBtn.addEventListener("click", () => {
     if (selectedIndex < 0 || !levelState.currentProfile) return;
-    const layout = levelState.currentProfile.layout;
-    if (layout.length <= 1) return;
-    pushHistory();
-    clearHighlight();
-    layout.splice(selectedIndex, 1);
-    selectedIndex = -1;
-    gizmo.visible = false;
-    rebuildCurrentLevelPlatforms();
-    renderPlatformList();
-    renderProperties();
+    if (selectedType === "pickup") {
+      const pickupDefs = levelState.currentProfile.pickups;
+      if (!pickupDefs || pickupDefs.length === 0) return;
+      pushHistory();
+      clearHighlight();
+      pickupDefs.splice(selectedIndex, 1);
+      selectedIndex = -1;
+      selectedType  = null;
+      gizmo.visible = false;
+      rebuildCurrentLevelPlatforms();
+      renderPlatformList();
+      renderPickupList();
+      renderProperties();
+    } else {
+      const layout = levelState.currentProfile.layout;
+      if (layout.length <= 1) return;
+      pushHistory();
+      clearHighlight();
+      layout.splice(selectedIndex, 1);
+      selectedIndex = -1;
+      selectedType  = null;
+      gizmo.visible = false;
+      rebuildCurrentLevelPlatforms();
+      renderPlatformList();
+      renderPickupList();
+      renderProperties();
+    }
   });
 
   undoBtn?.addEventListener("click", undo);
 
-  // Read all visible property inputs and write them into the layout def.
+  function addPickup(type) {
+    if (!levelState.currentProfile) return;
+    if (!levelState.currentProfile.pickups) levelState.currentProfile.pickups = [];
+    pushHistory();
+    const layout = levelState.currentProfile.layout;
+    const nonFinals = layout.filter((d) => !d.isFinal);
+    const last = nonFinals[nonFinals.length - 1];
+    const defaultAmount = type === "health" ? 0.25 : 0.30;
+    const newDef = {
+      x: last ? last.x + 1.5 : 1.5,
+      y: last ? last.y + 1.5 : 4.0,
+      z: 0,
+      type,
+      amount: defaultAmount,
+    };
+    levelState.currentProfile.pickups.push(newDef);
+    rebuildCurrentLevelPlatforms();
+    selectPickup(levelState.currentProfile.pickups.length - 1);
+    renderProperties();
+  }
+
+  addHealthPickupBtn?.addEventListener("click", () => addPickup("health"));
+  addRocketPickupBtn?.addEventListener("click", () => addPickup("rocket"));
+
+  // Read all visible property inputs and write them into the layout/pickup def.
   // This captures any uncommitted input values (typed but not yet blurred)
   // before serializing the profile for save.
   function flushPropertiesToDef() {
     if (selectedIndex < 0 || !levelState.currentProfile) return;
+    const g = (id) => document.getElementById(id);
+
+    if (selectedType === "pickup") {
+      const def = levelState.currentProfile.pickups?.[selectedIndex];
+      if (!def) return;
+      const x = parseFloat(g("p-x")?.value); if (!isNaN(x)) def.x = x;
+      const y = parseFloat(g("p-y")?.value); if (!isNaN(y)) def.y = y;
+      const z = parseFloat(g("p-z")?.value); if (!isNaN(z)) def.z = z;
+      const amt = parseFloat(g("p-amount")?.value);
+      if (!isNaN(amt)) def.amount = Math.max(0.01, Math.min(1.0, amt / 100));
+      return;
+    }
+
     const def = levelState.currentProfile.layout[selectedIndex];
     if (!def) return;
-    const g = (id) => document.getElementById(id);
 
     const x = parseFloat(g("p-x")?.value);   if (!isNaN(x))   def.x = x;
     const y = parseFloat(g("p-y")?.value);   if (!isNaN(y))   def.y = y;
@@ -692,7 +879,9 @@ export function initLevelEditor({
         drag.plane  = makeDragPlane(axis);
         const hit   = rayPlaneHit(drag.plane);
         if (hit) drag.planeHit.copy(hit);
-        const def = levelState.currentProfile?.layout[selectedIndex];
+        const def = selectedType === "pickup"
+          ? levelState.currentProfile?.pickups?.[selectedIndex]
+          : levelState.currentProfile?.layout[selectedIndex];
         if (def) drag.startPos.set(def.x, def.y, def.z);
         return;
       }
@@ -714,22 +903,37 @@ export function initLevelEditor({
       const hit = rayPlaneHit(drag.plane);
       if (hit) {
         const movement = hit.clone().sub(drag.planeHit).dot(AXIS_VECTORS[drag.axis]);
-        const def      = levelState.currentProfile?.layout[selectedIndex];
-        if (def) {
-          def[drag.axis] = drag.startPos[drag.axis] + movement;
-          const platform = platforms[selectedIndex];
-          if (platform) {
-            platform.mesh.position[drag.axis] = def[drag.axis];
-            platform.body.setNextKinematicTranslation(platform.mesh.position);
-            if (drag.axis === "x") { platform.originalX = def.x; platform.currentX = def.x; }
-            if (drag.axis === "y") { platform.originalY = def.y; platform.currentY = def.y; }
+        if (selectedType === "pickup") {
+          const def = levelState.currentProfile?.pickups?.[selectedIndex];
+          if (def) {
+            def[drag.axis] = drag.startPos[drag.axis] + movement;
+            const pickup = pickups[selectedIndex];
+            if (pickup) pickup.mesh.position[drag.axis] = def[drag.axis];
+            gizmo.position[drag.axis] = def[drag.axis];
+            const el = document.getElementById(`p-${drag.axis}`);
+            if (el) el.value = def[drag.axis].toFixed(2);
+            const listItems = pickupListEl?.querySelectorAll(".ed-item-pos");
+            if (listItems?.[selectedIndex])
+              listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
           }
-          gizmo.position[drag.axis] = def[drag.axis];
-          const el = document.getElementById(`p-${drag.axis}`);
-          if (el) el.value = def[drag.axis].toFixed(2);
-          const listItems = platformListEl.querySelectorAll(".ed-item-pos");
-          if (listItems[selectedIndex])
-            listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
+        } else {
+          const def = levelState.currentProfile?.layout[selectedIndex];
+          if (def) {
+            def[drag.axis] = drag.startPos[drag.axis] + movement;
+            const platform = platforms[selectedIndex];
+            if (platform) {
+              platform.mesh.position[drag.axis] = def[drag.axis];
+              platform.body.setNextKinematicTranslation(platform.mesh.position);
+              if (drag.axis === "x") { platform.originalX = def.x; platform.currentX = def.x; }
+              if (drag.axis === "y") { platform.originalY = def.y; platform.currentY = def.y; }
+            }
+            gizmo.position[drag.axis] = def[drag.axis];
+            const el = document.getElementById(`p-${drag.axis}`);
+            if (el) el.value = def[drag.axis].toFixed(2);
+            const listItems = platformListEl.querySelectorAll(".ed-item-pos");
+            if (listItems[selectedIndex])
+              listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
+          }
         }
       }
       return;
@@ -784,16 +988,21 @@ export function initLevelEditor({
     raycaster.setFromCamera(mouse, camera);
     if (gizmo.visible && raycaster.intersectObjects(gizmoMeshes, false).length > 0) return;
 
-    const meshes = platforms.map((p) => p.mesh);
-    const hits   = raycaster.intersectObjects(meshes, true);
+    const platformMeshes = platforms.map((p) => p.mesh);
+    const pickupMeshes   = pickups.map((pk) => pk.mesh);
+    const allMeshes      = [...platformMeshes, ...pickupMeshes];
+    const hits = raycaster.intersectObjects(allMeshes, true);
     if (hits.length > 0) {
       let obj = hits[0].object;
-      while (obj && !meshes.includes(obj)) obj = obj.parent;
-      const idx = meshes.indexOf(obj);
-      if (idx >= 0) { selectPlatform(idx); return; }
+      while (obj && !allMeshes.includes(obj)) obj = obj.parent;
+      const pidx = platformMeshes.indexOf(obj);
+      if (pidx >= 0) { selectPlatform(pidx); return; }
+      const kidx = pickupMeshes.indexOf(obj);
+      if (kidx >= 0) { selectPickup(kidx); return; }
     }
     resetSelection();
     renderPlatformList();
+    renderPickupList();
     renderProperties();
   }
 

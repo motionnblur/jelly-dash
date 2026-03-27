@@ -55,6 +55,14 @@ function Skills.resetState(state)
 end
 
 function Skills.update(state, runtime, delta)
+    -- Consume pending rocket fuel from pickups
+    if game.player and game.player.consumePendingRocketFuel then
+        local fuel = game.player.consumePendingRocketFuel()
+        if fuel > 0 then
+            state.rocketLevel = math.min(1.0, state.rocketLevel + fuel)
+        end
+    end
+
     if runtime.isGameOver or runtime.isTransitioning or runtime.isGameComplete then
         state.isRocketActive = false
         return

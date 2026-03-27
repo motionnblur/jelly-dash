@@ -132,6 +132,14 @@ function Movement.resetState(state)
 end
 
 function Movement.update(state, runtime, delta)
+    -- Consume pending health restore from pickups
+    if game.player and game.player.consumePendingHealthRestore then
+        local restore = game.player.consumePendingHealthRestore()
+        if restore > 0 then
+            state.gelMass = math.min(1.0, state.gelMass + restore)
+        end
+    end
+
     local velocity = runtime.velocity or { x = 0, y = 0, z = 0 }
     local translation = runtime.translation or { x = 0, y = 0, z = 0 }
     local isGrounded = runtime.isGrounded and true or false

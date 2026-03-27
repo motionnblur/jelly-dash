@@ -99,5 +99,14 @@
       "swingAmplitude": 0,
       "swingSpeed": 0
     }
+  ],
+  "pickups": [
+    {
+      "x": 0.62,
+      "y": 18.14,
+      "z": 0,
+      "type": "rocket",
+      "amount": 1
+    }
   ]
 }

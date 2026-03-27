@@ -10,6 +10,7 @@ import { createWinSoundController } from "../scripts/sound/winSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 import soundConfig from "../configs/sound-config.json";
+import pickupConfig from "../configs/pickup-config.json";
 import { initLevelEditor } from "../editor/LevelEditor.js";
 
 const luaModules = import.meta.glob("../scripts/**/*.lua", {
@@ -42,6 +43,7 @@ let winSoundController;
 
 const platforms = [];
 const particles = [];
+const pickups = [];
 const keys = {};
 
 const audioOptions = {
@@ -121,6 +123,8 @@ const playerState = {
   },
   rocketLevel: 1.0,
   isRocketActive: false,
+  pendingHealthRestore: 0,
+  pendingRocketFuel: 0,
   rocketMeshes: [],
   rocketSpin: 0,
   rocketSpinBaseDirection: 1,
@@ -416,6 +420,16 @@ async function init() {
           options = {},
         ) => spawnParticles(x, y, z, color, count, speedScale, options),
         playImpactSound: () => impactSoundController?.play(),
+        consumePendingHealthRestore: () => {
+          const v = playerState.pendingHealthRestore;
+          playerState.pendingHealthRestore = 0;
+          return v;
+        },
+        consumePendingRocketFuel: () => {
+          const v = playerState.pendingRocketFuel;
+          playerState.pendingRocketFuel = 0;
+          return v;
+        },
         triggerLandingCameraEffect: (airborneTime, impactSpeed) =>
           triggerLandingCameraEffect(airborneTime, impactSpeed),
         syncCollider: (force = false) => syncPlayerCollider(force),
@@ -443,6 +457,7 @@ async function init() {
     camera,
     renderer,
     platforms,
+    pickups,
     levelState,
     gameplayState,
     clock,
@@ -659,6 +674,36 @@ function createGround() {
   spaceBackdropGroup.add(glow);
 
   scene.add(spaceBackdropGroup);
+}
+
+function createPickup(def) {
+  const isHealth = def.type === "health";
+  const color = isHealth ? 0x44ff88 : 0xff2222;
+  const geometry = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.8,
+    metalness: 0.3,
+    roughness: 0.35,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(def.x, def.y, def.z);
+  scene.add(mesh);
+  const pickup = { mesh, type: def.type, collected: false, def };
+  pickups.push(pickup);
+  return pickup;
+}
+
+function clearPickups() {
+  for (const pickup of pickups) {
+    if (!pickup.collected) {
+      scene.remove(pickup.mesh);
+      pickup.mesh.geometry.dispose();
+      pickup.mesh.material.dispose();
+    }
+  }
+  pickups.length = 0;
 }
 
 function normalizePlatformShape(shape) {
@@ -1135,6 +1180,7 @@ function buildLevel(levelNumber) {
 
   clearPlatforms();
   clearParticles();
+  clearPickups();
 
   levelState.currentLevel = levelNumber;
   levelState.currentProfile = profile;
@@ -1165,6 +1211,10 @@ function buildLevel(levelNumber) {
         hitsToBreak: definition.hitsToBreak,
       },
     );
+  }
+
+  for (const def of profile.pickups ?? []) {
+    createPickup(def);
   }
 
   resetPlayerForLevel();
@@ -1202,6 +1252,10 @@ function rebuildCurrentLevelPlatforms() {
         hitsToBreak: definition.hitsToBreak,
       },
     );
+  }
+  clearPickups();
+  for (const def of levelState.currentProfile.pickups ?? []) {
+    createPickup(def);
   }
 }
 
@@ -1429,6 +1483,35 @@ function updatePlatforms(groundHitHandle, delta) {
   }
 }
 
+function updatePickups(playerTranslation) {
+  const time = playerState.jellyUniforms.uTime.value;
+  for (const pickup of pickups) {
+    if (pickup.collected) continue;
+    pickup.mesh.position.y = pickup.def.y + Math.sin(time * 3.0 + pickup.def.x) * 0.12;
+    pickup.mesh.rotation.y = time * 1.8;
+
+    if (!playerTranslation || playerState.isGameOver || levelState.isTransitioning || levelState.isGameComplete) continue;
+    const dx = pickup.def.x - playerTranslation.x;
+    const dy = pickup.def.y - playerTranslation.y;
+    const dz = pickup.def.z - playerTranslation.z;
+    if (dx * dx + dy * dy + dz * dz < 0.81) {
+      pickup.collected = true;
+      scene.remove(pickup.mesh);
+      pickup.mesh.geometry.dispose();
+      pickup.mesh.material.dispose();
+      if (pickup.type === "health") {
+        const amount = pickup.def.amount ?? pickupConfig.health.amount;
+        playerState.pendingHealthRestore += amount;
+        spawnParticles(pickup.def.x, pickup.def.y, pickup.def.z, 0x44ff88, 10, 0.9, {});
+      } else if (pickup.type === "rocket") {
+        const amount = pickup.def.amount ?? pickupConfig.rocket.amount;
+        playerState.pendingRocketFuel += amount;
+        spawnParticles(pickup.def.x, pickup.def.y, pickup.def.z, 0xff4433, 10, 0.9, {});
+      }
+    }
+  }
+}
+
 function updateFrame(delta) {
   updateParticles(delta);
 
@@ -1450,6 +1533,7 @@ function updateFrame(delta) {
 
   updateLandingCameraEffect(delta);
   updatePlatforms(snapshot.groundHitHandle, delta);
+  updatePickups(snapshot.translation);
 
   if (snapshot.isGameOver || levelState.isGameComplete) {
     player.position.copy(snapshot.translation);
