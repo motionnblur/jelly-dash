@@ -1,0 +1,35 @@
+{
+  "movement": {
+    "speed": 8,
+    "jumpImpulse": 12,
+    "spawn": { "x": 0, "y": 2.15, "z": 0 }
+  },
+  "gelEconomy": {
+    "jumpCost": 0.04,
+    "walkCost": 0.018,
+    "walkStepDistance": 2.0,
+    "criticalThreshold": 0.28,
+    "gameOverThreshold": 0.0,
+    "rocketGelCost": 0.1
+  },
+  "detection": {
+    "groundRayOffsets": [-0.45, -0.22, 0, 0.22, 0.45],
+    "groundRayStartY": -0.4,
+    "groundRayLength": 0.6,
+    "groundCoyoteTime": 0.14
+  },
+  "boundaries": {
+    "spaceshipAltitudeThreshold": 120
+  },
+  "camera": {
+    "jumpShakeMax": 1,
+    "jumpShakeDecay": 4.2,
+    "jumpShakeOffset": 0.22,
+    "jumpShakeRoll": 0.018
+  },
+  "rockets": {
+    "thrust": 1,
+    "drainRate": 0.8,
+    "refillRate": 0.05
+  }
+}

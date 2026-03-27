@@ -1,0 +1,19 @@
+{
+  "rendering": {
+    "skyColor": 395540,
+    "fogColor": 724992
+  },
+  "campaign": {
+    "levelCount": 50,
+    "levelSeed": 1597500383,
+    "maxSafeLevelDrain": 0.9,
+    "levelPatterns": ["glide", "pulse", "switchback", "crest"],
+    "levelColors": [
+      7401983, 16747099, 7864190, 16736157, 9143807, 16765798
+    ]
+  },
+  "physics": {
+    "gravity": -19.6,
+    "platformHeight": 0.5
+  }
+}

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
 import { uiManager } from "../ui/UIManager";
+import worldConfig from "../configs/world-config.json";
+import playerConfig from "../configs/player-config.json";
 
 const luaModules = import.meta.glob("../scripts/*.lua", {
   query: "?raw",
@@ -24,37 +26,56 @@ const platforms = [];
 const particles = [];
 const keys = {};
 
-const SKY_COLOR = 0x060914;
-const FOG_COLOR = 0x0b1020;
-const LEVEL_COUNT = 50;
-const LEVEL_SEED = 0x5f3759df;
-const PLATFORM_HEIGHT = 0.5;
-const PLAYER_SPAWN = { x: 0, y: 2.15, z: 0 };
-const MAX_SAFE_LEVEL_DRAIN = 0.9;
-const JUMP_GEL_COST = 0.04;
-const WALK_GEL_COST = 0.018;
-const WALK_STEP_DISTANCE = 2.0;
-const GEL_CRITICAL_THRESHOLD = 0.28;
-const GEL_GAME_OVER_THRESHOLD = 0.0;
-const PLAYER_GROUND_RAY_OFFSETS = [-0.45, -0.22, 0, 0.22, 0.45];
-const PLAYER_GROUND_RAY_START_Y = -0.4;
-const PLAYER_GROUND_RAY_LENGTH = 0.6;
-const PLAYER_GROUND_COYOTE_TIME = 0.14;
-const JUMP_CAMERA_SHAKE_MAX = 1;
-const JUMP_CAMERA_SHAKE_DECAY = 4.2;
-const JUMP_CAMERA_SHAKE_OFFSET = 0.22;
-const JUMP_CAMERA_SHAKE_ROLL = 0.018;
+const {
+  rendering: { skyColor: SKY_COLOR, fogColor: FOG_COLOR },
+  campaign: {
+    levelCount: LEVEL_COUNT,
+    levelSeed: LEVEL_SEED,
+    maxSafeLevelDrain: MAX_SAFE_LEVEL_DRAIN,
+    levelPatterns: LEVEL_PATTERNS,
+    levelColors: LEVEL_COLORS,
+  },
+  physics: {
+    gravity: INITIAL_GRAVITY,
+    platformHeight: PLATFORM_HEIGHT,
+  },
+} = worldConfig;
 
-const ROCKET_THRUST = 1;
-const ROCKET_DRAIN_RATE = 0.8; // per second
-const ROCKET_REFILL_RATE = 0.05; // per second
-const ROCKET_GEL_COST = 0.1; // extra gel drain per second of flight
-const SPACESHIP_ALTITUDE_THRESHOLD = 120;
-
-const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
-const LEVEL_COLORS = [
-  0x70e1ff, 0xff8a5b, 0x77ff88, 0xff5f9d, 0x8b7dff, 0xffd166,
-];
+const {
+  movement: {
+    speed: PLAYER_SPEED,
+    jumpImpulse: JUMP_IMPULSE,
+    spawn: PLAYER_SPAWN,
+  },
+  gelEconomy: {
+    jumpCost: JUMP_GEL_COST,
+    walkCost: WALK_GEL_COST,
+    walkStepDistance: WALK_STEP_DISTANCE,
+    criticalThreshold: GEL_CRITICAL_THRESHOLD,
+    gameOverThreshold: GEL_GAME_OVER_THRESHOLD,
+    rocketGelCost: ROCKET_GEL_COST,
+  },
+  detection: {
+    groundRayOffsets: PLAYER_GROUND_RAY_OFFSETS,
+    groundRayStartY: PLAYER_GROUND_RAY_START_Y,
+    groundRayLength: PLAYER_GROUND_RAY_LENGTH,
+    groundCoyoteTime: PLAYER_GROUND_COYOTE_TIME,
+  },
+  boundaries: {
+    spaceshipAltitudeThreshold: SPACESHIP_ALTITUDE_THRESHOLD,
+  },
+  camera: {
+    jumpShakeMax: JUMP_CAMERA_SHAKE_MAX,
+    jumpShakeDecay: JUMP_CAMERA_SHAKE_DECAY,
+    jumpShakeOffset: JUMP_CAMERA_SHAKE_OFFSET,
+    jumpShakeRoll: JUMP_CAMERA_SHAKE_ROLL,
+  },
+  rockets: {
+    thrust: ROCKET_THRUST,
+    drainRate: ROCKET_DRAIN_RATE,
+    refillRate: ROCKET_REFILL_RATE,
+  },
+} = playerConfig;
 
 const playerState = {
   gelMass: 1.0,
@@ -122,9 +143,9 @@ const jumpCameraState = {
 };
 
 const gameConfig = {
-  playerSpeed: 8,
-  jumpImpulse: 12,
-  gravity: -19.6,
+  playerSpeed: PLAYER_SPEED,
+  jumpImpulse: JUMP_IMPULSE,
+  gravity: INITIAL_GRAVITY,
 };
 
 const existingCanvas = document.querySelector("canvas");
