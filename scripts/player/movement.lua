@@ -145,6 +145,10 @@ function Movement.update(state, runtime, delta)
     if runtime.isGameOver or runtime.isTransitioning or runtime.isGameComplete then
         state.isGameOver = runtime.isGameOver and true or state.isGameOver
         state.isRocketActive = false
+        if runtime.isTransitioning then
+            state.pendingVelocity.x = 0
+            state.pendingVelocity.z = 0
+        end
         return true
     end
 
