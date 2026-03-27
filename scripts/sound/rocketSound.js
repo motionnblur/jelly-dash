@@ -3,10 +3,11 @@ const ROCKET_SOUND_URL = new URL(
   import.meta.url,
 ).href;
 
-export function createRocketSoundController() {
+export function createRocketSoundController(soundConfig = {}) {
+  const volume = soundConfig.rocket?.volume ?? 0.6;
   const rocketSound = new Audio(ROCKET_SOUND_URL);
   rocketSound.preload = "auto";
-  rocketSound.volume = 0.6;
+  rocketSound.volume = volume;
   rocketSound.loop = true;
 
   let isPlaying = false;

@@ -3,10 +3,11 @@ const IMPACT_SOUND_URL = new URL(
   import.meta.url,
 ).href;
 
-export function createImpactSoundController() {
+export function createImpactSoundController(soundConfig = {}) {
+  const volume = soundConfig.impact?.volume ?? 0.75;
   const impactSound = new Audio(IMPACT_SOUND_URL);
   impactSound.preload = "auto";
-  impactSound.volume = 0.75;
+  impactSound.volume = volume;
 
   function play() {
     try {

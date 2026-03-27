@@ -7,6 +7,7 @@ import { createRocketSoundController } from "../scripts/sound/rocketSound";
 import { createImpactSoundController } from "../scripts/sound/impactSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
+import soundConfig from "../configs/sound-config.json";
 
 const luaModules = import.meta.glob("../scripts/**/*.lua", {
   query: "?raw",
@@ -320,9 +321,9 @@ async function init() {
   renderer.setClearColor(SKY_COLOR, 1);
   document.body.appendChild(renderer.domElement);
 
-  bgMusicController = createBackgroundMusicController();
-  rocketSoundController = createRocketSoundController();
-  impactSoundController = createImpactSoundController();
+  bgMusicController = createBackgroundMusicController(soundConfig);
+  rocketSoundController = createRocketSoundController(soundConfig);
+  impactSoundController = createImpactSoundController(soundConfig);
 
   clock = new THREE.Clock();
 

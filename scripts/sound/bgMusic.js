@@ -3,10 +3,14 @@ const BG_MUSIC_URL = new URL(
   import.meta.url,
 ).href;
 
-export function createBackgroundMusicController() {
+export function createBackgroundMusicController(soundConfig = {}) {
+  const volume =
+    soundConfig.backgroundMusic?.volume ??
+    soundConfig.bgMusic?.volume ??
+    0.2;
   const bgMusic = new Audio(BG_MUSIC_URL);
   bgMusic.preload = "auto";
-  bgMusic.volume = 0.2;
+  bgMusic.volume = volume;
   bgMusic.loop = true;
 
   let isPlaying = false;

@@ -61,6 +61,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - `assets/sounds/rocket-sound.mp3` plays while rockets are active and is paused + rewound when thrust stops.
 - Audio playback is owned by `scripts/sound/rocketSound.js`; `core/Engine.js` only forwards `playerState.isRocketActive` into the controller.
 - `assets/sounds/bg-music.mp3` loops as low-volume background music and is started by `scripts/sound/bgMusic.js`.
+- Sound volumes are centralized in `configs/sound-config.json`.
 
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
@@ -405,6 +406,8 @@ Use these when validating layout generation or progression through Playwright or
   - centralized global parameters (gravity, colors, level generation)
 - `configs/player-config.json`
   - centralized player parameters (movement, drain costs, rockets, camera)
+- `configs/sound-config.json`
+  - centralized sound volumes
 
 ## Developer Notes For Agents
 
