@@ -1,4 +1,4 @@
-# Agent Documentation: Gel Run 100-Level Campaign
+# Agent Documentation: Gel Run 50-Level Campaign
 
 This document is the implementation-level guide for AI agents and developers working on this project. It describes the current architecture, gameplay rules, level-generation math, and the constraints that matter when changing difficulty.
 
@@ -62,6 +62,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Audio playback is owned by `scripts/sound/rocketSound.js`; `core/Engine.js` only forwards `playerState.isRocketActive` into the controller.
 - `assets/sounds/bg-music.mp3` loops as low-volume background music and is started by `scripts/sound/bgMusic.js`.
 - Sound volumes are centralized in `configs/sound-config.json`.
+- All sound controllers expose `setVolume(0.0–1.0)` and `setEnabled(bool)` for runtime control by the options menu.
 
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
@@ -99,6 +100,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 - The game contains `LEVEL_COUNT = 50`.
 - Each level is generated from a seeded profile at startup.
 - Entering the final hex starts a short transition, then builds the next level.
+- When the final hex is touched, a win sound plays and the player's horizontal velocity is immediately zeroed every frame until the next level loads (vertical velocity is left intact for gravity).
 - Every new level resets:
   - `gelMass` to `1.0`
   - player transform and velocity
@@ -106,6 +108,25 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
   - particle state
 - If the player falls below `y = -10`, a **RUN COLLAPSED** game-over screen appears.
 - Level 50 completion shows a campaign-complete overlay.
+
+### 7. Pause and Menu System
+- **P key**: toggles a simple **GAME PAUSED** overlay. `updateFrame` is skipped while paused; the scene continues rendering so the overlay is visible. On unpause, the clock delta is discarded to prevent a physics spike.
+- **ESC key**: opens the **ESC Menu** (RESTART / OPTIONS / RESUME). The game is paused while any menu overlay is open.
+  - **RESTART**: closes the menu and restarts from level 1.
+  - **OPTIONS**: slides into the Options panel (ESC menu hides, options panel shows). ESC inside options goes back to the ESC menu rather than toggling it in the background.
+  - **RESUME**: closes the menu and unpauses.
+- Menu state is tracked in `gameplayState`: `isPaused`, `isEscMenuOpen`, `isOptionsOpen`.
+- `openEscMenu()`, `closeEscMenu()`, `openOptions()`, `closeOptions()` in `core/Engine.js` are the canonical functions for state transitions — use these, not direct `uiManager` calls.
+
+### 8. Options Menu (Sound)
+- Opened from the ESC menu OPTIONS button; BACK or ESC returns to the ESC menu.
+- Runtime audio state lives in the `audioOptions` object in `core/Engine.js`:
+  - `audioOptions.master` — global on/off bool
+  - `audioOptions.bgMusic`, `.jump`, `.rocket`, `.impact`, `.win` — each has `{ enabled: bool, volume: 0.0–1.0 }`
+- `applyAudioChannel(channel)` computes effective enabled (`master && channelEnabled`) and calls `setVolume` / `setEnabled` on the relevant controller.
+- `applyAllAudio()` calls `applyAudioChannel` for all five channels.
+- When master is off, all channel rows in the UI are dimmed and non-interactive via the `.master-off` CSS class on `.opt-body`.
+- Initial slider values are seeded from `configs/sound-config.json`. Changes apply live and are not persisted across page reloads.
 
 ## Level Generation System
 
@@ -332,6 +353,18 @@ Difficulty growth is mostly from four sources:
 
 The generator does **not** currently add moving hazards, enemies, or fake branch routes. Difficulty is still purely traversal and resource pressure.
 
+## Input Map
+
+| Key | Action |
+|-----|--------|
+| A / Arrow Left | Move left |
+| D / Arrow Right | Move right |
+| Space | Jump (hold for higher jump) |
+| Shift | Rocket boost |
+| P | Toggle pause |
+| ESC | Open/close ESC menu (or go back from Options) |
+| F1 | Toggle developer cheat terminal |
+
 ## Cheat System (F1 Terminal)
 The game includes a hidden system terminal for developers and advanced users.
 
@@ -369,29 +402,48 @@ Use these when validating layout generation or progression through Playwright or
   - HUD shell
   - loading overlay
   - game-over overlay
+  - paused overlay (`#paused`)
+  - ESC menu overlay (`#esc-menu`) — RESTART / OPTIONS / RESUME
+  - options menu overlay (`#options-menu`) — master toggle, BG music, and per-FX controls
   - campaign-complete overlay
 - `main.js`
   - entry point
 - `core/Engine.js`
   - rendering, physics, input, gel logic, generator, progression, test hooks
+  - pause state (`gameplayState.isPaused`, `isEscMenuOpen`, `isOptionsOpen`)
+  - audio options state (`audioOptions`) and `applyAudioChannel` / `applyAllAudio`
+  - menu helpers: `openEscMenu`, `closeEscMenu`, `openOptions`, `closeOptions`
+  - options UI wiring: `initOptionsUI`
 - `core/LuaRuntime.js`
   - Wasmoon wrapper
 - `ui/UIManager.js`
   - HUD updates and overlay visibility
+  - `showPaused` / `hidePaused`
+  - `showEscMenu` / `hideEscMenu`
+  - `showOptions` / `hideOptions`
+  - `setMasterOffDim(bool)` — toggles `.master-off` on `.opt-body`
 - `ui/styles.css`
   - HUD / overlay styling
+  - ESC menu styles (`.esc-menu-content`, `.esc-nav`, `.esc-btn`)
+  - options panel styles (`.options-panel`, `.opt-row`, `.opt-toggle`, `.opt-slider`)
 - `assets/sounds/rocket-sound.mp3`
   - rocket thrust audio cue used while Shift is active
 - `assets/sounds/impact-sound.mp3`
   - hurt / landing impact audio cue used on damaging falls
 - `assets/sounds/bg-music.mp3`
   - looping background music at low volume
+- `assets/sounds/win-sound.mp3`
+  - played once when the player touches the final hex and triggers a level transition
 - `scripts/sound/bgMusic.js`
-  - background music controller
+  - background music controller (`play`, `destroy`, `setVolume`, `setEnabled`)
 - `scripts/sound/rocketSound.js`
-  - rocket thrust audio controller
+  - rocket thrust audio controller (`sync`, `destroy`, `setVolume`, `setEnabled`)
 - `scripts/sound/impactSound.js`
-  - landing impact audio controller
+  - landing impact audio controller (`play`, `setVolume`, `setEnabled`)
+- `scripts/sound/jumpSound.js`
+  - jump audio controller (`play`, `setVolume`, `setEnabled`)
+- `scripts/sound/winSound.js`
+  - level-complete audio controller (`play`, `setVolume`, `setEnabled`)
 - `scripts/shared/world.lua`
   - base-world creation only
 - `scripts/player/main.lua`
@@ -407,7 +459,7 @@ Use these when validating layout generation or progression through Playwright or
 - `configs/player-config.json`
   - centralized player parameters (movement, drain costs, rockets, camera)
 - `configs/sound-config.json`
-  - centralized sound volumes
+  - centralized sound volumes (keys: `backgroundMusic`, `rocket`, `jump`, `impact`, `win`)
 
 ## Developer Notes For Agents
 
@@ -463,6 +515,19 @@ Look at:
 - `queueLevelRestart()`
 - `scripts/player/main.lua` for player-specific state transitions and drain timing
 
+### If You Add a New Sound Effect
+1. Create `assets/sounds/<name>.mp3`.
+2. Create `scripts/sound/<name>Sound.js` following the pattern of `impactSound.js` — export a `create<Name>SoundController(soundConfig)` that returns `{ play, setVolume, setEnabled }`.
+3. Add a `"<name>": { "volume": 0.75 }` entry to `configs/sound-config.json`.
+4. Import and instantiate the controller in `core/Engine.js` alongside the others.
+5. Add a channel entry to `audioOptions` in `core/Engine.js`.
+6. Add a row to the `#options-menu` in `index.html` and bind it in `initOptionsUI`.
+
+### If You Add a New Menu Overlay
+- Follow the existing overlay pattern: `position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 1000;` with the frosted-glass backdrop.
+- Add `show<Name>` / `hide<Name>` methods to `UIManager`.
+- Manage the open/close state in `gameplayState` so the ESC key handler can make correct routing decisions.
+
 ### UI Design (Green Glassmorphism)
 - The UI follows a medical/scifi **green glassmorphism** aesthetic:
   - Frosted glass effects using `backdrop-filter: blur(28px)` and high saturation.
@@ -475,6 +540,7 @@ Look at:
     - **System Terminal**: A centered pop-up terminal for entering cheat codes.
     - **Respite Levels**: Route tags glow soft blue to indicate a recovery level.
     - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
+    - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 27, 2026 (Lua-owned player module folder, Cheat System, God Mode, Green Shadowless UI, 50-level campaign)*
+*Last Updated: March 27, 2026 (win sound, pause system, ESC menu, options menu with live audio controls, player freeze on level completion)*
