@@ -29,6 +29,7 @@
   },
   "rockets": {
     "thrust": 1,
+    "maxRiseSpeed": 10,
     "drainRate": 0.8,
     "refillRate": 0.05
   }

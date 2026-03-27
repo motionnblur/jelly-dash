@@ -213,7 +213,7 @@ function Movement.update(state, runtime, delta)
         if type(gelMass) == "number" then
             state.gelMass = gelMass
         end
-    elseif not jumpHeld and state.pendingVelocity.y > 0 then
+    elseif (not jumpHeld or shiftPressed) and state.pendingVelocity.y > 0 then
         state.pendingVelocity.y = state.pendingVelocity.y * 0.9
     end
 

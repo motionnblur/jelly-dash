@@ -7,6 +7,7 @@ local config = {
     drainRate = 0.45,
     refillRate = 0.22,
     rocketGelCost = 0.005,
+    maxRiseSpeed = 10.0,
 }
 
 local function hasInput(code)
@@ -43,6 +44,7 @@ function Skills.configure(playerConfig)
     config.drainRate = rockets.drainRate or 0.45
     config.refillRate = rockets.refillRate or 0.22
     config.rocketGelCost = gelEconomy.rocketGelCost or 0.005
+    config.maxRiseSpeed = rockets.maxRiseSpeed or 10.0
 end
 
 function Skills.resetState(state)
@@ -82,7 +84,10 @@ function Skills.update(state, runtime, delta)
             state.rocketLevel = 1.0
         end
 
-        nextVelocity.y = (nextVelocity.y or 0) + config.thrust
+        nextVelocity.y = math.min(
+            config.maxRiseSpeed,
+            (nextVelocity.y or 0) + config.thrust
+        )
 
         if random() < 0.3 then
             spawnParticles(translation)
