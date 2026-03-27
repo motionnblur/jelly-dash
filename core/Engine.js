@@ -3,6 +3,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
 import { uiManager } from "../ui/UIManager";
 import { createBackgroundMusicController } from "../scripts/sound/bgMusic";
+import { createJumpSoundController } from "../scripts/sound/jumpSound";
 import { createRocketSoundController } from "../scripts/sound/rocketSound";
 import { createImpactSoundController } from "../scripts/sound/impactSound";
 import worldConfig from "../configs/world-config.json";
@@ -26,6 +27,7 @@ let playerCollider;
 let animationId;
 let spaceBackdropGroup;
 let bgMusicController;
+let jumpSoundController;
 let rocketSoundController;
 let impactSoundController;
 
@@ -322,6 +324,7 @@ async function init() {
   document.body.appendChild(renderer.domElement);
 
   bgMusicController = createBackgroundMusicController(soundConfig);
+  jumpSoundController = createJumpSoundController(soundConfig);
   rocketSoundController = createRocketSoundController(soundConfig);
   impactSoundController = createImpactSoundController(soundConfig);
 
@@ -378,6 +381,7 @@ async function init() {
           drainGel(amount);
           return playerState.gelMass;
         },
+        playJumpSound: () => jumpSoundController?.play(),
         spawnParticles: (
           x,
           y,
@@ -387,10 +391,10 @@ async function init() {
           speedScale = 1.0,
           options = {},
         ) => spawnParticles(x, y, z, color, count, speedScale, options),
-      playImpactSound: () => impactSoundController?.play(),
-      triggerLandingCameraEffect: (airborneTime, impactSpeed) =>
-        triggerLandingCameraEffect(airborneTime, impactSpeed),
-      syncCollider: (force = false) => syncPlayerCollider(force),
+        playImpactSound: () => impactSoundController?.play(),
+        triggerLandingCameraEffect: (airborneTime, impactSpeed) =>
+          triggerLandingCameraEffect(airborneTime, impactSpeed),
+        syncCollider: (force = false) => syncPlayerCollider(force),
       },
       setGravity: (y) => {
         gameConfig.gravity = y;

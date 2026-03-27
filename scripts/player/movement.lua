@@ -204,6 +204,9 @@ function Movement.update(state, runtime, delta)
     if jumpHeld and not state.jumpWasHeld and canJump and not shiftPressed then
         state.pendingVelocity.y = config.jumpImpulse
         state.groundedCoyoteTimer = 0
+        if game.player and game.player.playJumpSound then
+            game.player.playJumpSound()
+        end
         local gelMass = spawnParticles(
             {
                 x = translation.x,

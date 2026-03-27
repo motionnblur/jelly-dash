@@ -5,6 +5,9 @@
   "rocket": {
     "volume": 0.6
   },
+  "jump": {
+    "volume": 0.75
+  },
   "impact": {
     "volume": 0.75
   }
