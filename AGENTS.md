@@ -57,6 +57,8 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Rockets consume fuel from a dedicated meter: `ROCKET_DRAIN_RATE = 0.45` (refills at `0.22` when idle).
 - Rocket meshes dynamically sync their X position to the player's current shader-driven scale (`uScale.xz`).
 - Thruster visuals include a red glow and red exhaustion particles.
+- `assets/sounds/rocket-sound.mp3` plays while rockets are active and is paused + rewound when thrust stops.
+- Audio playback is owned by `core/Engine.js`, which preloads the clip through Vite and keeps the loop synchronized with `playerState.isRocketActive`.
 
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
@@ -375,6 +377,8 @@ Use these when validating layout generation or progression through Playwright or
   - HUD updates and overlay visibility
 - `ui/styles.css`
   - HUD / overlay styling
+- `assets/sounds/rocket-sound.mp3`
+  - rocket thrust audio cue used while Shift is active
 - `scripts/shared/world.lua`
   - base-world creation only
 - `scripts/player/main.lua`
