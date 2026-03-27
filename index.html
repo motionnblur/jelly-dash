@@ -82,6 +82,94 @@
         </div>
     </div>
 
+    <div id="options-menu">
+        <div class="options-panel">
+            <p class="overlay-kicker">Options</p>
+            <h2>SOUND</h2>
+
+            <div class="opt-body">
+                <!-- Master -->
+                <div class="opt-row opt-row--master">
+                    <span class="opt-label">MASTER SOUND</span>
+                    <label class="opt-toggle">
+                        <input type="checkbox" id="opt-master" checked>
+                        <span class="opt-toggle-track"></span>
+                    </label>
+                </div>
+
+                <div class="opt-divider"></div>
+
+                <!-- BG Music -->
+                <div class="opt-section-title">BG MUSIC</div>
+                <div class="opt-row">
+                    <span class="opt-label">ENABLED</span>
+                    <label class="opt-toggle">
+                        <input type="checkbox" id="opt-bgmusic-enabled" checked>
+                        <span class="opt-toggle-track"></span>
+                    </label>
+                </div>
+                <div class="opt-row">
+                    <span class="opt-label">VOLUME</span>
+                    <div class="opt-slider-group">
+                        <input type="range" class="opt-slider" id="opt-bgmusic-vol" min="0" max="100" value="12">
+                        <span class="opt-vol-val" id="opt-bgmusic-vol-val">12</span>
+                    </div>
+                </div>
+
+                <div class="opt-divider"></div>
+
+                <!-- Sound FX -->
+                <div class="opt-section-title">SOUND FX</div>
+                <div class="opt-row">
+                    <span class="opt-label">JUMP</span>
+                    <div class="opt-fx-controls">
+                        <label class="opt-toggle">
+                            <input type="checkbox" id="opt-jump-enabled" checked>
+                            <span class="opt-toggle-track"></span>
+                        </label>
+                        <input type="range" class="opt-slider opt-slider--sm" id="opt-jump-vol" min="0" max="100" value="35">
+                        <span class="opt-vol-val" id="opt-jump-vol-val">35</span>
+                    </div>
+                </div>
+                <div class="opt-row">
+                    <span class="opt-label">ROCKET</span>
+                    <div class="opt-fx-controls">
+                        <label class="opt-toggle">
+                            <input type="checkbox" id="opt-rocket-enabled" checked>
+                            <span class="opt-toggle-track"></span>
+                        </label>
+                        <input type="range" class="opt-slider opt-slider--sm" id="opt-rocket-vol" min="0" max="100" value="80">
+                        <span class="opt-vol-val" id="opt-rocket-vol-val">80</span>
+                    </div>
+                </div>
+                <div class="opt-row">
+                    <span class="opt-label">IMPACT</span>
+                    <div class="opt-fx-controls">
+                        <label class="opt-toggle">
+                            <input type="checkbox" id="opt-impact-enabled" checked>
+                            <span class="opt-toggle-track"></span>
+                        </label>
+                        <input type="range" class="opt-slider opt-slider--sm" id="opt-impact-vol" min="0" max="100" value="75">
+                        <span class="opt-vol-val" id="opt-impact-vol-val">75</span>
+                    </div>
+                </div>
+                <div class="opt-row">
+                    <span class="opt-label">WIN</span>
+                    <div class="opt-fx-controls">
+                        <label class="opt-toggle">
+                            <input type="checkbox" id="opt-win-enabled" checked>
+                            <span class="opt-toggle-track"></span>
+                        </label>
+                        <input type="range" class="opt-slider opt-slider--sm" id="opt-win-vol" min="0" max="100" value="75">
+                        <span class="opt-vol-val" id="opt-win-vol-val">75</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="options-back-btn" class="esc-btn esc-btn--primary">BACK</button>
+        </div>
+    </div>
+
     <div id="game-complete">
         <div class="game-over-content complete-shell">
             <p class="overlay-kicker">Campaign cleared</p>

@@ -37,6 +37,15 @@ const platforms = [];
 const particles = [];
 const keys = {};
 
+const audioOptions = {
+  master: true,
+  bgMusic:  { enabled: true, volume: soundConfig.backgroundMusic?.volume ?? 0.12 },
+  jump:     { enabled: true, volume: soundConfig.jump?.volume             ?? 0.35 },
+  rocket:   { enabled: true, volume: soundConfig.rocket?.volume           ?? 0.80 },
+  impact:   { enabled: true, volume: soundConfig.impact?.volume           ?? 0.75 },
+  win:      { enabled: true, volume: soundConfig.win?.volume              ?? 0.75 },
+};
+
 const {
   rendering: { skyColor: SKY_COLOR, fogColor: FOG_COLOR },
   campaign: {
@@ -470,6 +479,81 @@ function onKeyUp(event) {
     return;
   }
   keys[event.code] = false;
+}
+
+function applyAudioChannel(channel) {
+  const opt = audioOptions[channel];
+  const eff = audioOptions.master && opt.enabled;
+  const ctrl = { bgMusic: bgMusicController, jump: jumpSoundController, rocket: rocketSoundController, impact: impactSoundController, win: winSoundController }[channel];
+  ctrl?.setVolume(opt.volume);
+  ctrl?.setEnabled(eff);
+}
+
+function applyAllAudio() {
+  ["bgMusic", "jump", "rocket", "impact", "win"].forEach(applyAudioChannel);
+}
+
+function initOptionsUI() {
+  // Helper to sync a volume slider and its label display
+  function bindSlider(sliderId, labelId, channel) {
+    const slider = document.getElementById(sliderId);
+    const label  = document.getElementById(labelId);
+    if (!slider || !label) return;
+    const pct = Math.round(audioOptions[channel].volume * 100);
+    slider.value = pct;
+    label.textContent = pct;
+    slider.addEventListener("input", () => {
+      const v = parseInt(slider.value, 10);
+      label.textContent = v;
+      audioOptions[channel].volume = v / 100;
+      applyAudioChannel(channel);
+    });
+  }
+
+  // Helper to sync an enable toggle
+  function bindToggle(checkboxId, channel) {
+    const cb = document.getElementById(checkboxId);
+    if (!cb) return;
+    cb.checked = audioOptions[channel].enabled;
+    cb.addEventListener("change", () => {
+      audioOptions[channel].enabled = cb.checked;
+      applyAudioChannel(channel);
+    });
+  }
+
+  // Master toggle
+  const masterCb = document.getElementById("opt-master");
+  if (masterCb) {
+    masterCb.checked = audioOptions.master;
+    masterCb.addEventListener("change", () => {
+      audioOptions.master = masterCb.checked;
+      uiManager.setMasterOffDim(!audioOptions.master);
+      applyAllAudio();
+    });
+  }
+
+  bindToggle("opt-bgmusic-enabled", "bgMusic");
+  bindSlider("opt-bgmusic-vol", "opt-bgmusic-vol-val", "bgMusic");
+
+  bindToggle("opt-jump-enabled",   "jump");
+  bindSlider("opt-jump-vol",   "opt-jump-vol-val",   "jump");
+
+  bindToggle("opt-rocket-enabled", "rocket");
+  bindSlider("opt-rocket-vol", "opt-rocket-vol-val", "rocket");
+
+  bindToggle("opt-impact-enabled", "impact");
+  bindSlider("opt-impact-vol", "opt-impact-vol-val", "impact");
+
+  bindToggle("opt-win-enabled",    "win");
+  bindSlider("opt-win-vol",    "opt-win-vol-val",    "win");
+
+  // BACK button
+  if (uiManager.optionsBackBtn) {
+    uiManager.optionsBackBtn.addEventListener("click", () => {
+      uiManager.hideOptions();
+      uiManager.showEscMenu();
+    });
+  }
 }
 
 function openEscMenu() {
@@ -1643,6 +1727,15 @@ function setupTestingHooks() {
       buildLevel(1);
     });
   }
+
+  if (uiManager.escOptionsBtn) {
+    uiManager.escOptionsBtn.addEventListener("click", () => {
+      uiManager.hideEscMenu();
+      uiManager.showOptions();
+    });
+  }
+
+  initOptionsUI();
 }
 
 if (import.meta.hot) {

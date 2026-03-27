@@ -4,12 +4,14 @@ const WIN_SOUND_URL = new URL(
 ).href;
 
 export function createWinSoundController(soundConfig = {}) {
-  const volume = soundConfig.win?.volume ?? 0.75;
   const winSound = new Audio(WIN_SOUND_URL);
   winSound.preload = "auto";
-  winSound.volume = volume;
+  winSound.volume = soundConfig.win?.volume ?? 0.75;
+
+  let enabled = true;
 
   function play() {
+    if (!enabled) return;
     try {
       winSound.currentTime = 0;
       const playback = winSound.play();
@@ -21,7 +23,17 @@ export function createWinSoundController(soundConfig = {}) {
     }
   }
 
+  function setVolume(v) {
+    winSound.volume = v;
+  }
+
+  function setEnabled(val) {
+    enabled = val;
+  }
+
   return {
     play,
+    setVolume,
+    setEnabled,
   };
 }

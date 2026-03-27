@@ -4,12 +4,14 @@ const JUMP_SOUND_URL = new URL(
 ).href;
 
 export function createJumpSoundController(soundConfig = {}) {
-  const volume = soundConfig.jump?.volume ?? 0.75;
   const jumpSound = new Audio(JUMP_SOUND_URL);
   jumpSound.preload = "auto";
-  jumpSound.volume = volume;
+  jumpSound.volume = soundConfig.jump?.volume ?? 0.75;
+
+  let enabled = true;
 
   function play() {
+    if (!enabled) return;
     try {
       jumpSound.currentTime = 0;
       const playback = jumpSound.play();
@@ -21,7 +23,17 @@ export function createJumpSoundController(soundConfig = {}) {
     }
   }
 
+  function setVolume(v) {
+    jumpSound.volume = v;
+  }
+
+  function setEnabled(val) {
+    enabled = val;
+  }
+
   return {
     play,
+    setVolume,
+    setEnabled,
   };
 }

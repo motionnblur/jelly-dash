@@ -4,19 +4,21 @@ const BG_MUSIC_URL = new URL(
 ).href;
 
 export function createBackgroundMusicController(soundConfig = {}) {
-  const volume =
+  const initialVolume =
     soundConfig.backgroundMusic?.volume ??
     soundConfig.bgMusic?.volume ??
     0.2;
   const bgMusic = new Audio(BG_MUSIC_URL);
   bgMusic.preload = "auto";
-  bgMusic.volume = volume;
+  bgMusic.volume = initialVolume;
   bgMusic.loop = true;
 
   let isPlaying = false;
+  let enabled = true;
+  let baseVolume = initialVolume;
 
   function play() {
-    if (isPlaying) {
+    if (isPlaying || !enabled) {
       return;
     }
 
@@ -43,8 +45,34 @@ export function createBackgroundMusicController(soundConfig = {}) {
     isPlaying = false;
   }
 
+  function setVolume(v) {
+    baseVolume = v;
+    if (enabled) {
+      bgMusic.volume = v;
+    }
+  }
+
+  function setEnabled(val) {
+    enabled = val;
+    if (!enabled) {
+      if (isPlaying) {
+        try {
+          bgMusic.pause();
+        } catch {
+          // ignore
+        }
+        isPlaying = false;
+      }
+    } else {
+      bgMusic.volume = baseVolume;
+      play();
+    }
+  }
+
   return {
     play,
     destroy,
+    setVolume,
+    setEnabled,
   };
 }

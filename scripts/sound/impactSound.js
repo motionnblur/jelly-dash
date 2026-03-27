@@ -4,12 +4,14 @@ const IMPACT_SOUND_URL = new URL(
 ).href;
 
 export function createImpactSoundController(soundConfig = {}) {
-  const volume = soundConfig.impact?.volume ?? 0.75;
   const impactSound = new Audio(IMPACT_SOUND_URL);
   impactSound.preload = "auto";
-  impactSound.volume = volume;
+  impactSound.volume = soundConfig.impact?.volume ?? 0.75;
+
+  let enabled = true;
 
   function play() {
+    if (!enabled) return;
     try {
       impactSound.currentTime = 0;
       const playback = impactSound.play();
@@ -21,7 +23,17 @@ export function createImpactSoundController(soundConfig = {}) {
     }
   }
 
+  function setVolume(v) {
+    impactSound.volume = v;
+  }
+
+  function setEnabled(val) {
+    enabled = val;
+  }
+
   return {
     play,
+    setVolume,
+    setEnabled,
   };
 }

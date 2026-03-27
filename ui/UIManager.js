@@ -9,6 +9,9 @@ export class UIManager {
     this.escRestartBtn = document.getElementById("esc-restart-btn");
     this.escOptionsBtn = document.getElementById("esc-options-btn");
     this.escResumeBtn = document.getElementById("esc-resume-btn");
+    this.optionsMenuEl = document.getElementById("options-menu");
+    this.optionsBackBtn = document.getElementById("options-back-btn");
+    this.optBody = document.querySelector(".opt-body");
     this.healthValueEl = document.getElementById("health-value");
     this.healthFillEl = document.getElementById("health-fill");
     this.healthPanelEl = document.querySelector(".health-panel");
@@ -161,6 +164,24 @@ export class UIManager {
   hideEscMenu() {
     if (this.escMenuEl) {
       this.escMenuEl.style.display = "none";
+    }
+  }
+
+  showOptions() {
+    if (this.optionsMenuEl) {
+      this.optionsMenuEl.style.display = "flex";
+    }
+  }
+
+  hideOptions() {
+    if (this.optionsMenuEl) {
+      this.optionsMenuEl.style.display = "none";
+    }
+  }
+
+  setMasterOffDim(isOff) {
+    if (this.optBody) {
+      this.optBody.classList.toggle("master-off", isOff);
     }
   }
 

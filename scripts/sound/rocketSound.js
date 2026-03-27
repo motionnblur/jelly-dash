@@ -4,15 +4,28 @@ const ROCKET_SOUND_URL = new URL(
 ).href;
 
 export function createRocketSoundController(soundConfig = {}) {
-  const volume = soundConfig.rocket?.volume ?? 0.6;
   const rocketSound = new Audio(ROCKET_SOUND_URL);
   rocketSound.preload = "auto";
-  rocketSound.volume = volume;
+  rocketSound.volume = soundConfig.rocket?.volume ?? 0.6;
   rocketSound.loop = true;
 
   let isPlaying = false;
+  let enabled = true;
 
   function sync(isActive) {
+    if (!enabled) {
+      if (isPlaying) {
+        try {
+          rocketSound.pause();
+          rocketSound.currentTime = 0;
+        } catch {
+          // ignore
+        }
+        isPlaying = false;
+      }
+      return;
+    }
+
     if (isActive) {
       if (isPlaying) {
         return;
@@ -48,8 +61,21 @@ export function createRocketSoundController(soundConfig = {}) {
     sync(false);
   }
 
+  function setVolume(v) {
+    rocketSound.volume = v;
+  }
+
+  function setEnabled(val) {
+    enabled = val;
+    if (!enabled) {
+      sync(false);
+    }
+  }
+
   return {
     sync,
     destroy,
+    setVolume,
+    setEnabled,
   };
 }
