@@ -68,7 +68,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - `WALK_GEL_COST = 0.018`
   - one walking drain event fires every `WALK_STEP_DISTANCE = 2.0` world units while grounded and moving
   - effective drain rate: `0.018 / 2.0 = 0.009` gel per world unit walked
-- Landing particles are cosmetic feedback and currently do not directly drain health.
+- Hard landings now also chip gel based on impact speed, and that hurt event triggers `assets/sounds/impact-sound.mp3`.
 - Rocket usage incurs a continuous systemic cost: `ROCKET_GEL_COST = 0.005` (0.5 HP per second while active).
 - Level generation is tuned around a target maximum expected level drain:
   - `MAX_SAFE_LEVEL_DRAIN = 0.90`
@@ -380,8 +380,12 @@ Use these when validating layout generation or progression through Playwright or
   - HUD / overlay styling
 - `assets/sounds/rocket-sound.mp3`
   - rocket thrust audio cue used while Shift is active
+- `assets/sounds/impact-sound.mp3`
+  - hurt / landing impact audio cue used on damaging falls
 - `scripts/sound/rocketSound.js`
   - rocket thrust audio controller
+- `scripts/sound/impactSound.js`
+  - landing impact audio controller
 - `scripts/shared/world.lua`
   - base-world creation only
 - `scripts/player/main.lua`

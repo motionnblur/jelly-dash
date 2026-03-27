@@ -3,6 +3,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { luaRuntime } from "./LuaRuntime";
 import { uiManager } from "../ui/UIManager";
 import { createRocketSoundController } from "../scripts/sound/rocketSound";
+import { createImpactSoundController } from "../scripts/sound/impactSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 
@@ -23,6 +24,7 @@ let playerCollider;
 let animationId;
 let spaceBackdropGroup;
 let rocketSoundController;
+let impactSoundController;
 
 const platforms = [];
 const particles = [];
@@ -317,6 +319,7 @@ async function init() {
   document.body.appendChild(renderer.domElement);
 
   rocketSoundController = createRocketSoundController();
+  impactSoundController = createImpactSoundController();
 
   clock = new THREE.Clock();
 
@@ -380,6 +383,7 @@ async function init() {
           speedScale = 1.0,
           options = {},
         ) => spawnParticles(x, y, z, color, count, speedScale, options),
+        playImpactSound: () => impactSoundController?.play(),
         triggerLandingCameraEffect: (airborneTime, impactSpeed) =>
           triggerLandingCameraEffect(airborneTime, impactSpeed),
         syncCollider: (force = false) => syncPlayerCollider(force),
@@ -780,6 +784,9 @@ function spawnParticles(
 
   if (drainAmount > 0) {
     drainGel(drainAmount);
+    if (options.playImpactSound) {
+      impactSoundController?.play();
+    }
   }
 
   const particleScale =

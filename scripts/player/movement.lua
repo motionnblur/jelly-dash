@@ -162,6 +162,7 @@ function Movement.update(state, runtime, delta)
             state.spawnLandingGrace = false
         else
             local impactSpeed = state.lastLandingImpactSpeed
+            local landingDrain = math.max(0, (impactSpeed - 1.8) * 0.012)
             local gelMass = spawnParticles(
                 {
                     x = translation.x,
@@ -170,7 +171,11 @@ function Movement.update(state, runtime, delta)
                 },
                 0x44ff44,
                 math.min(6 + math.floor(impactSpeed), 18),
-                0.3 + impactSpeed / 12
+                0.3 + impactSpeed / 12,
+                {
+                    drainGelTotal = landingDrain,
+                    playImpactSound = landingDrain > 0,
+                }
             )
             if type(gelMass) == "number" then
                 state.gelMass = gelMass
