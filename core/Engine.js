@@ -1242,6 +1242,7 @@ function updatePlatforms(groundHitHandle, delta) {
     platform.currentY +=
       (targetY - platform.currentY) * alpha * Math.min(1, delta * 60);
 
+    const prevX = platform.currentX;
     const swingOffset =
       platform.swingAmplitude > 0
         ? Math.cos(
@@ -1250,6 +1251,12 @@ function updatePlatforms(groundHitHandle, delta) {
           ) * platform.swingAmplitude
         : 0;
     platform.currentX = platform.originalX + swingOffset;
+
+    if (isSteppedOn && platform.swingAmplitude > 0 && delta > 0 && playerBody) {
+      const platformVx = (platform.currentX - prevX) / delta;
+      const vel = playerBody.linvel();
+      playerBody.setLinvel({ x: vel.x + platformVx, y: vel.y, z: vel.z }, true);
+    }
 
     platform.body.setNextKinematicTranslation({
       x: platform.currentX,
