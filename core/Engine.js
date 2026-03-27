@@ -141,6 +141,7 @@ const gameplayState = {
   manualStepMode: false,
   isPaused: false,
   isEscMenuOpen: false,
+  isOptionsOpen: false,
 };
 
 const jumpCameraState = {
@@ -461,7 +462,9 @@ function onKeyDown(event) {
   }
 
   if (event.code === "Escape" && !playerState.isGameOver && !levelState.isGameComplete) {
-    if (gameplayState.isEscMenuOpen) {
+    if (gameplayState.isOptionsOpen) {
+      closeOptions();
+    } else if (gameplayState.isEscMenuOpen) {
       closeEscMenu();
     } else {
       openEscMenu();
@@ -550,10 +553,21 @@ function initOptionsUI() {
   // BACK button
   if (uiManager.optionsBackBtn) {
     uiManager.optionsBackBtn.addEventListener("click", () => {
-      uiManager.hideOptions();
-      uiManager.showEscMenu();
+      closeOptions();
     });
   }
+}
+
+function openOptions() {
+  gameplayState.isOptionsOpen = true;
+  uiManager.hideEscMenu();
+  uiManager.showOptions();
+}
+
+function closeOptions() {
+  gameplayState.isOptionsOpen = false;
+  uiManager.hideOptions();
+  uiManager.showEscMenu();
 }
 
 function openEscMenu() {
@@ -1730,8 +1744,7 @@ function setupTestingHooks() {
 
   if (uiManager.escOptionsBtn) {
     uiManager.escOptionsBtn.addEventListener("click", () => {
-      uiManager.hideEscMenu();
-      uiManager.showOptions();
+      openOptions();
     });
   }
 
