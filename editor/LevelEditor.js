@@ -488,15 +488,32 @@ export function initLevelEditor({
 
   exportBtn.addEventListener("click", () => {
     if (!levelState.currentProfile) return;
-    const json = JSON.stringify(levelState.currentProfile, null, 2);
-    const a = document.createElement("a");
-    a.href = "data:application/json," + encodeURIComponent(json);
-    a.download = `level${levelState.currentLevel}.json`;
-    a.click();
-    navigator.clipboard.writeText(json).then(() => {
-      exportBtn.textContent = "✓ COPIED!";
-      setTimeout(() => { exportBtn.textContent = "EXPORT JSON"; }, 2000);
-    }).catch(() => {});
+    const profile = levelState.currentProfile;
+    exportBtn.textContent = "SAVING...";
+    exportBtn.disabled = true;
+    fetch("/api/save-level", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok) {
+          exportBtn.textContent = "✓ SAVED";
+          setTimeout(() => {
+            exportBtn.textContent = "SAVE";
+            exportBtn.disabled = false;
+          }, 1500);
+        } else {
+          throw new Error(data.error ?? "Unknown error");
+        }
+      })
+      .catch((err) => {
+        console.error("Save failed:", err);
+        exportBtn.textContent = "✗ FAILED";
+        exportBtn.disabled = false;
+        setTimeout(() => { exportBtn.textContent = "SAVE"; }, 2000);
+      });
   });
 
   // ── Gizmo drag helpers ─────────────────────────────────────────────────────
