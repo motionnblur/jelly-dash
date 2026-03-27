@@ -83,6 +83,7 @@ export function initLevelEditor({
   levelState,
   gameplayState,
   clock,
+  player,
   rebuildCurrentLevelPlatforms,
   buildLevel,
 }) {
@@ -170,6 +171,13 @@ export function initLevelEditor({
   const nextLvlBtn     = document.getElementById("editor-next-level");
   const levelLabelEl   = document.getElementById("editor-level-label");
 
+  // ── Game UI elements to hide while editor is open ─────────────────────────
+  const gameHudEls = [
+    document.getElementById("overlay"),
+    document.querySelector(".level-panel"),
+    document.getElementById("dev-level-picker"),
+  ].filter(Boolean);
+
   // ── Open / Close ───────────────────────────────────────────────────────────
   function openEditor() {
     isOpen = true;
@@ -179,6 +187,8 @@ export function initLevelEditor({
 
     panel.classList.add("editor-panel--open");
     fab.classList.add("editor-fab--active");
+    gameHudEls.forEach((el) => { el.style.display = "none"; });
+    if (player) player.visible = false;
 
     savedCam.pos.copy(camera.position);
     savedCam.quat.copy(camera.quaternion);
@@ -217,6 +227,8 @@ export function initLevelEditor({
 
     panel.classList.remove("editor-panel--open");
     fab.classList.remove("editor-fab--active");
+    gameHudEls.forEach((el) => { el.style.display = ""; });
+    if (player) player.visible = true;
 
     clearHighlight();
     selectedIndex = -1;

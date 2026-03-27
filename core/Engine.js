@@ -446,6 +446,7 @@ async function init() {
     levelState,
     gameplayState,
     clock,
+    player,
     rebuildCurrentLevelPlatforms,
     buildLevel,
   });
