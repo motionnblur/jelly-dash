@@ -488,16 +488,15 @@ export function initLevelEditor({
 
   exportBtn.addEventListener("click", () => {
     if (!levelState.currentProfile) return;
-    const json = JSON.stringify(levelState.currentProfile.layout, null, 2);
+    const json = JSON.stringify(levelState.currentProfile, null, 2);
+    const a = document.createElement("a");
+    a.href = "data:application/json," + encodeURIComponent(json);
+    a.download = `level${levelState.currentLevel}.json`;
+    a.click();
     navigator.clipboard.writeText(json).then(() => {
       exportBtn.textContent = "✓ COPIED!";
       setTimeout(() => { exportBtn.textContent = "EXPORT JSON"; }, 2000);
-    }).catch(() => {
-      const a = document.createElement("a");
-      a.href = "data:application/json," + encodeURIComponent(json);
-      a.download = `level-${levelState.currentLevel}.json`;
-      a.click();
-    });
+    }).catch(() => {});
   });
 
   // ── Gizmo drag helpers ─────────────────────────────────────────────────────

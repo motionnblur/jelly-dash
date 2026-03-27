@@ -3,7 +3,7 @@
 This document is the implementation-level guide for AI agents and developers working on this project. It describes the current architecture, gameplay rules, level-generation math, and the constraints that matter when changing difficulty.
 
 ## Project Overview
-This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**. The player is a shrinking gel character that loses health while moving and jumping. Each level is a short airborne route of hexagonal platforms suspended in space, ending in a distinct final hex. Touching the final hex advances to the next level. The game contains a seeded **100-level campaign** with gradual difficulty growth and intermittent easier recovery levels.
+This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**. The player is a shrinking gel character that loses health while moving and jumping. Each level is a short airborne route of hexagonal platforms suspended in space, ending in a distinct final hex. Touching the final hex advances to the next level. The game contains a **50-level campaign** with gradual difficulty growth and intermittent easier recovery levels.
 
 ## Tech Stack
 - **Rendering**: [Three.js](https://threejs.org/)
@@ -100,7 +100,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 
 ### 6. Level Flow
 - The game contains `LEVEL_COUNT = 50`.
-- Each level is generated from a seeded profile at startup.
+- Each level is loaded from a static JSON file (`assets/levels/level1.json` … `assets/levels/level50.json`) at startup via `import.meta.glob`.
 - Entering the final hex starts a short transition, then builds the next level.
 - When the final hex is touched, a win sound plays and the player's horizontal velocity is immediately zeroed every frame until the next level loads (vertical velocity is left intact for gravity).
 - Every new level resets:
@@ -130,230 +130,58 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 - When master is off, all channel rows in the UI are dimmed and non-interactive via the `.master-off` CSS class on `.opt-body`.
 - Initial slider values are seeded from `configs/sound-config.json`. Changes apply live and are not persisted across page reloads.
 
-## Level Generation System
+## Level Data System
 
-### High-Level Intent
-The generator is not purely random. It is a seeded, bounded difficulty system that tries to do four things at once:
+### Overview
+Levels are stored as static JSON files rather than being generated at runtime.
 
-1. increase route complexity over 100 levels
-2. keep every generated route reachable with the current movement model
-3. ensure the gel budget stays survivable
-4. insert easier "breather" levels intermittently so the campaign rhythm does not become monotonically harder
+- **Location**: `assets/levels/level1.json` … `assets/levels/level50.json`
+- **Loader**: `buildLevelProfilesFromFiles(levelJsonModules)` in `core/Engine.js` reads all 50 files eagerly via `import.meta.glob("../assets/levels/level*.json", { eager: true, import: "default" })` and builds the `levelState.profiles` array in level order.
+- **Generator script**: `tools/generate-levels.js` is a one-off Node.js ESM script that was used to produce the initial 50 JSON files using the original seeded math. Run `node tools/generate-levels.js` again if the seed constants or generator math change.
 
-### Seed Model
-- Global campaign seed:
-  - `LEVEL_SEED = 0x5f3759df`
-- Per-level RNG:
-  - `mulberry32((LEVEL_SEED ^ (level * 0x9e3779b9)) >>> 0)`
+### Level Profile Schema
+Each JSON file contains one profile object:
 
-This means level generation is deterministic for a given code version. If an agent changes the math, the whole 100-level sequence can change even with the same seed.
-
-### Difficulty Progress Scalar
-Each level computes:
-
-```js
-progress = (level - 1) / (LEVEL_COUNT - 1)
+```json
+{
+  "level": 1,
+  "isRespite": false,
+  "label": "OPENING ARC",
+  "estimatedDrain": 0.38,
+  "layout": [...]
+}
 ```
 
-That gives a normalized scalar from `0` to `1`.
+Each entry in `layout` is a platform definition:
 
-This scalar drives most difficulty parameters through linear interpolation:
-- platform count
-- base gap size
-- gap variance
-- vertical rise allowance
-- vertical fall allowance
-- minimum route height
-- maximum route height
-- platform diameter
+| Field | Type | Description |
+|---|---|---|
+| `x`, `y`, `z` | number | World position |
+| `w`, `h`, `d` | number | Dimensions (w = d = diameter, h = 0.5) |
+| `color` | number | Hex color integer |
+| `isFinal` | bool | True for the goal platform |
+| `shape` | string | `"hex"`, `"square"`, or `"triangle"` |
+| `rotationY` | number | Rotation around Y axis in radians |
+| `isDestroyable` | bool | Whether the platform breaks on hit |
+| `hitsToBreak` | number | 0 for indestructible, 2 for breakable |
+| `bobPhase` | number | Initial phase offset for vertical motion |
+| `motionAmplitude` | number | Vertical wave amplitude (0 = no motion) |
+| `motionSpeed` | number | Vertical wave frequency |
+| `swingAmplitude` | number | Horizontal pendulum amplitude |
+| `swingSpeed` | number | Horizontal pendulum frequency |
 
-There is also an explicit **early-game pressure boost** layered on top of this.
-
-For roughly the first 22% of the campaign:
-
-```js
-earlyPressure = max(0, 1 - progress / 0.22)
-```
-
-That scalar is used to make the opening levels harder than a plain linear curve would make them. The goal is to avoid a tutorial-like first 10 to 20 levels.
-
-In practice, `earlyPressure` does all of the following:
-- increases platform count
-- reduces platform diameter slightly
-- increases base gap size
-- increases gap variance slightly
-- increases the final jump distance a little
-- increases early vertical rise/fall allowance
-- adds a small alternating vertical cadence kick so the opening routes climb and dip instead of reading as flat horizontal chains
-
-Respite levels still receive a reduced version of this boost, but much smaller than normal levels.
-
-### Respite Level Insertion
-The game periodically inserts easier levels. These are not every Nth level exactly.
-
-The logic:
-- track `levelsSinceRespite`
-- force a respite if there have been 8 non-respite levels in a row
-- allow a respite after 4 levels with a probability:
-
-```js
-0.22 + level * 0.002
-```
-
-This creates:
-- guaranteed spacing ceiling so the player never goes too long without relief
-- enough randomness that the easier levels do not feel scheduled
-- slightly more frequent respites than the 100-level version — the 50-level campaign is shorter, so pacing recovery windows matter more
-
-When a level is marked as respite:
-- its effective difficulty scalar is reduced:
-
-```js
-softenedProgress = max(0, progress - 0.08 - rng() * 0.03)
-```
-
-- platforms become slightly larger
-- gaps become shorter
-- gap variance shrinks
-- height swings shrink
-- the route pattern becomes `"plateau"` instead of one of the harder route families
-
-### Route Size / Shape Parameters
-For each level profile, the generator computes:
-
-```js
-platformCount = clamp(round(3 + softenedProgress * 8.0 + rng() * 1.5 + endgameBonus), 3, 10)
-platformDiameter = lerp(4.2, 2.55, softenedProgress) + respiteBonus
-verticalGapBase = lerp(2.45, 3.55, softenedProgress) - respiteReduction
-verticalGapVariance = lerp(0.14, 0.58, softenedProgress) * respiteScale
-minX = lerp(-0.65, -2.15, softenedProgress) - respiteOffset
-maxX = lerp(0.65, 2.15, softenedProgress) + respiteOffset
-swayRightMax = lerp(0.22, 1.45, softenedProgress) * respiteScale
-swayLeftMax = lerp(0.18, 1.1, softenedProgress) * respiteScale
-```
-
-Interpretation:
-- later levels use more platforms
-- smaller non-final platforms begin appearing from level 3 onward, and the shrink amount scales up through the campaign
-- respites get a softened version of the shrink so they still feel easier than adjacent routes
-- later levels widen the vertical climb and increase the amount of lateral sway between platforms
-- later levels place the route higher in the frame
-- the first fifth of the campaign gets an extra difficulty bump from `earlyPressure`, so early routes are denser than a simple linear interpolation would produce
-
-### Route Patterns
-Non-respite levels choose one of these pattern families:
-- `glide`
-- `pulse`
-- `switchback`
-- `crest`
-
-Respite levels use:
-- `plateau`
-
-These are not separate level templates. They are different vertical delta functions applied while building the chain.
-
-#### `glide`
-- mostly rising path
-- smooth and readable
-- occasional flatter step
-
-#### `pulse`
-- alternating rise / dip rhythm
-- introduces cadence changes without large brutality spikes
-
-#### `switchback`
-- more aggressive alternation between upward and downward adjustments
-- creates more timing changes
-
-#### `crest`
-- route rises through the early section, then softens or falls slightly late
-- good for endgame silhouettes without forcing infinite climb
-
-#### `plateau`
-- almost flat
-- small, gentle upward drift
-- designed to recover pacing and preserve player confidence
-
-### Platform Placement Math
-Each route starts from:
-
-```js
-x = 0
-y = -1.6
-```
-
-For each non-final platform:
-
-1. sample vertical gap noise
-
-```js
-gapNoise = (rng() * 2 - 1) * verticalGapVariance
-gap = max(2.25, (verticalGapBase + gapNoise) * gapScale)
-```
-
-2. advance y:
-- first step uses `gap * 0.82`
-- later steps use full `gap`
-
-3. compute platform diameter with small random wobble, then apply a campaign-scaled shrink to non-final platforms from level 3 onward:
-
-```js
-diameter = clamp(platformDiameter + randomOffset - sizeShrink, 1.95, 4.6)
-```
-
-4. update `x` using the selected route pattern as lateral sway
-
-5. append platform definition
-
-The final platform is then added using:
-- a slightly larger final vertical gap
-- a mostly similar horizontal offset to the last route platform
-- a slightly larger diameter, but not as generous as the first pass of the campaign generator
-- fixed gold color and `isFinal = true`
-
-For early levels, the final gap also receives a small extra push from `earlyPressure`, so the opening stages require more commitment instead of feeling like extended warm-up rooms.
-
-### Survival Budget Math
-The generator estimates whether a layout is safe before finalizing it.
-
-The estimate is:
-
-```js
-routeDistance = sum(distance(platform[i], platform[i - 1]))
-jumpCost = layout.length * JUMP_GEL_COST
-walkCost = routeDistance * (WALK_GEL_COST / WALK_STEP_DISTANCE)
-estimatedDrain = jumpCost + walkCost
-```
-
-Important nuance:
-- `layout.length` includes the final platform, so the estimator assumes one jump per platform segment.
-- this is intentionally conservative enough to keep routes survivable without simulating full player trajectories
-
-If:
-
-```js
-estimatedDrain > MAX_SAFE_LEVEL_DRAIN
-```
-
-the generator reduces route spread:
-
-```js
-gapScale *= 0.92
-```
-
-and regenerates the layout, up to 6 attempts.
-
-This is the main safety valve that keeps late-game routes from becoming mathematically impossible under the drain system.
+### Editing Levels
+Use the in-game level editor (FAB button, bottom-right). When done, click **EXPORT JSON** to download `levelN.json` and replace the corresponding file in `assets/levels/`.
 
 ### What Makes Later Levels Harder
-Difficulty growth is mostly from four sources:
-- more jumps
-- more movement between jumps, both vertically and sideways
+Difficulty grows across the 50 levels via the stored layout data:
+- more platforms per level
 - smaller landing surfaces
-- bigger and less predictable vertical climb changes
-- a subset of non-final platforms also move vertically in looping motion from level 6 onward
-
-The generator does **not** currently add moving hazards, enemies, or fake branch routes. Difficulty is still purely traversal and resource pressure.
+- larger vertical gaps between platforms
+- more lateral sway between platforms
+- vertical wave motion on platforms (from level 6 onward)
+- horizontal pendulum motion on alternating platforms (from level 3 onward)
+- breakable platforms (from level 4 onward)
 
 ## Input Map
 
@@ -415,7 +243,7 @@ Use these when validating layout generation or progression through Playwright or
 - `main.js`
   - entry point
 - `core/Engine.js`
-  - rendering, physics, input, gel logic, generator, progression, test hooks
+  - rendering, physics, input, gel logic, level loading, progression, test hooks
   - pause state (`gameplayState.isPaused`, `isEscMenuOpen`, `isOptionsOpen`, `isEditorOpen`)
   - audio options state (`audioOptions`) and `applyAudioChannel` / `applyAllAudio`
   - menu helpers: `openEscMenu`, `closeEscMenu`, `openOptions`, `closeOptions`
@@ -441,7 +269,7 @@ Use these when validating layout generation or progression through Playwright or
   - level navigation (prev/next arrows) calls `buildLevel()` to switch levels while staying in editor mode; clears history
   - Add platform: inserts a `freshPlatformDef` before the final platform in the layout
   - Delete platform: splices the selected entry from the layout
-  - Export JSON: copies `levelState.currentProfile.layout` to clipboard (fallback: triggers file download)
+  - Export JSON: downloads `levelN.json` containing the full profile object (`level`, `isRespite`, `label`, `estimatedDrain`, `layout`); also attempts to copy to clipboard
 - `core/LuaRuntime.js`
   - Wasmoon wrapper
 - `ui/UIManager.js`
@@ -490,33 +318,32 @@ Use these when validating layout generation or progression through Playwright or
   - centralized player parameters (movement, drain costs, rockets, camera)
 - `configs/sound-config.json`
   - centralized sound volumes (keys: `backgroundMusic`, `rocket`, `jump`, `impact`, `win`)
+- `assets/levels/level1.json` … `assets/levels/level50.json`
+  - static level data; each file is one profile object loaded eagerly at startup
+- `tools/generate-levels.js`
+  - one-off Node.js ESM script that regenerates all 50 JSON files using the original seeded generator math; run with `node tools/generate-levels.js`
 
 ## Developer Notes For Agents
 
 ### If You Want To Rebalance Difficulty
-Change these first in `configs/player-config.json` (economy) or `configs/world-config.json` (generation):
-- `gelEconomy.jumpCost`
-- `gelEconomy.walkCost`
-- `gelEconomy.walkStepDistance`
-- `campaign.maxSafeLevelDrain`
-- the `lerp(...)` endpoints in `generateLevelProfile()` in `core/Engine.js` are still logic-bound, but the base values are now in `world-config.json`.
+- Edit individual level JSON files in `assets/levels/` using the in-game editor and export
+- To rebalance gel drain economy, change `configs/player-config.json`: `gelEconomy.jumpCost`, `gelEconomy.walkCost`, `gelEconomy.walkStepDistance`
+- To regenerate all levels from scratch with different seeded parameters, edit `tools/generate-levels.js` constants and run `node tools/generate-levels.js`
 
-Rule of thumb:
-- if players die too often late, reduce `gapBase`, `gapVariance`, or `platformCount`
-- if levels are too easy but feel structurally good, raise drain slightly before increasing geometry brutality
-- if the campaign feels repetitive, change the route-pattern deltas before changing the whole difficulty curve
+### If You Want To Hand-Author a Level
+1. Open the in-game level editor (FAB button)
+2. Navigate to the desired level
+3. Edit platforms using the gizmo, property panel, Add/Delete buttons
+4. Click **EXPORT JSON** — this downloads `levelN.json` with the full profile
+5. Copy the downloaded file to `assets/levels/levelN.json`
+6. Rebuild/reload the game
 
 ### If You Want To Make Respite Levels More Frequent
-Adjust the respite insertion logic in `buildLevelProfiles()`:
+Edit `tools/generate-levels.js`:
 - lower the minimum spacing from 3 (currently 4)
 - lower the forced spacing from 7 (currently 8)
 - raise the respite probability coefficient (currently `0.22 + level * 0.002`)
-
-### If You Want Hand-Authored Milestone Levels
-The cleanest approach is:
-1. keep the generator for most levels
-2. override specific indices like 10, 25, 50, 75, 100 with custom layouts
-3. still run the same drain estimate against those layouts
+- run `node tools/generate-levels.js` to regenerate
 
 ### If You Add New Gel-Draining Effects
 - Prefer explicit drain through `drainGel(amount)` or `spawnParticles(..., { drainGelTotal })`
@@ -537,10 +364,8 @@ Adjust these in `configs/player-config.json`:
 
 ### If You Debug Progression
 Look at:
-- `buildLevelProfiles()`
-- `generateLevelProfile()`
-- `createLayoutCandidate()`
-- `estimateLayoutDrain()`
+- `buildLevelProfilesFromFiles()` in `core/Engine.js` — level loading
+- `assets/levels/levelN.json` — the actual level data
 - `startLevelTransition()`
 - `queueLevelRestart()`
 - `scripts/player/main.lua` for player-specific state transitions and drain timing
