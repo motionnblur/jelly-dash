@@ -49,6 +49,7 @@ const ROCKET_THRUST = 1;
 const ROCKET_DRAIN_RATE = 0.8; // per second
 const ROCKET_REFILL_RATE = 0.05; // per second
 const ROCKET_GEL_COST = 0.1; // extra gel drain per second of flight
+const SPACESHIP_ALTITUDE_THRESHOLD = 120;
 
 const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
 const LEVEL_COLORS = [
@@ -505,7 +506,24 @@ function updateLandingCameraEffect(delta) {
   );
 }
 
-function triggerGameOver(cause) {
+function triggerSpaceshipStrike(pos) {
+  const rayGeo = new THREE.CylinderGeometry(0.5, 0.5, 200, 16);
+  const rayMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+  const ray = new THREE.Mesh(rayGeo, rayMat);
+  ray.position.set(pos.x, pos.y + 100, pos.z);
+  scene.add(ray);
+  
+  // Flash effect
+  const flashGeo = new THREE.SphereGeometry(4, 32, 32);
+  const flashMat = new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.5 });
+  const flash = new THREE.Mesh(flashGeo, flashMat);
+  flash.position.copy(pos);
+  scene.add(flash);
+
+  triggerGameOver("spaceship", 2000);
+}
+
+function triggerGameOver(cause, delayMs = 0) {
   if (playerState.isGameOver) return;
   playerState.isGameOver = true;
   if (playerBody) {
@@ -513,10 +531,20 @@ function triggerGameOver(cause) {
     playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
   }
   
-  if (cause === "fall") {
-    uiManager.showGameOver("RUN COLLAPSED", "The gel dissolved in the void.");
+  const showUI = () => {
+    if (cause === "fall") {
+      uiManager.showGameOver("RUN COLLAPSED", "The gel dissolved in the void.");
+    } else if (cause === "spaceship") {
+      uiManager.showGameOver("GEL EVAPORATED", "Illegal altitude detected. Orbit enforcers triggered.");
+    } else {
+      uiManager.showGameOver("GEL DEPLETED", "You lost too much of yourself to go on.");
+    }
+  };
+
+  if (delayMs > 0) {
+    setTimeout(showUI, delayMs);
   } else {
-    uiManager.showGameOver("GEL DEPLETED", "You lost too much of yourself to go on.");
+    showUI();
   }
 }
 
@@ -1190,6 +1218,10 @@ function updateFrame(delta) {
 
   if (translation.y < -10) {
     triggerGameOver("fall");
+  }
+
+  if (translation.y > SPACESHIP_ALTITUDE_THRESHOLD) {
+    triggerSpaceshipStrike(translation);
   }
 
   player.position.copy(translation);
