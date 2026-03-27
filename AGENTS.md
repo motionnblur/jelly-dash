@@ -40,7 +40,8 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Landing after a fall triggers a short camera shake, and longer airtime produces stronger impact.
 - `gelMass` starts each level at `1.0`.
 - Health warning starts at `28 HP` (28%), but actual death happens only at `0`.
-- When the player dies, the run freezes and the `GEL DEPLETED` overlay appears.
+- **God Mode**: When `playerState.isGodMode` is true, the player is invincible and gel mass never depletes.
+- When the player dies, the run freezes and a context-aware **GAME OVER** overlay appears.
 
 ### 4. Rocket Boost Mechanic (L-Shift)
 - The player is equipped with red metallic rockets on both sides.
@@ -90,7 +91,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
   - player transform and velocity
   - jelly animation state
   - particle state
-- If the player falls below `y = -10`, the current level restarts instead of leaving the player in an endless fall.
+- If the player falls below `y = -10`, a **RUN COLLAPSED** game-over screen appears.
 - Level 50 completion shows a campaign-complete overlay.
 
 ## Level Generation System
@@ -318,6 +319,18 @@ Difficulty growth is mostly from four sources:
 
 The generator does **not** currently add moving hazards, enemies, or fake branch routes. Difficulty is still purely traversal and resource pressure.
 
+## Cheat System (F1 Terminal)
+The game includes a hidden system terminal for developers and advanced users.
+
+- **Trigger**: `F1` toggles the terminal UI.
+- **Animation**: The terminal pops in from the center of the screen with a scale/fade effect.
+- **Commands**:
+  - `godmode`: Toggles invincibility.
+  - `rocketboy`: Toggles unlimited rocket fuel and health protection during flight.
+- **Behavior**:
+  - The terminal clears its history and input upon closing.
+  - While the terminal is open, standard gameplay keybinds are disabled to prevent accidental movement.
+
 ## Deterministic Test Hooks
 `core/Engine.js` exposes:
 
@@ -411,16 +424,18 @@ Look at:
 - `startLevelTransition()`
 - `queueLevelRestart()`
 
-### UI Design (Glassmorphism)
-- The UI follows a medical/scifi **glassmorphism** aesthetic:
-  - Frosted glass effects using `backdrop-filter: blur(28px)`.
-  - Semi-transparent `rgba(255, 255, 255, 0.12)` backgrounds with thin `rgba(255, 255, 255, 0.22)` borders.
-  - Premium typography using the **Outfit** font with high-contrast weights (700-800).
+### UI Design (Green Glassmorphism)
+- The UI follows a medical/scifi **green glassmorphism** aesthetic:
+  - Frosted glass effects using `backdrop-filter: blur(28px)` and high saturation.
+  - Semi-transparent `rgba(92, 255, 120, 0.15)` backgrounds with vibrant green `rgba(92, 255, 120, 0.25)` borders.
+  - **Shadowless Design**: All `box-shadow` and `text-shadow` properties are removed for a clean, futuristic look.
+  - Premium typography using the **Outfit** font with high-contrast weights (700-800) in green tones.
   - Interactive states:
     - **Health Warning**: Status panel pulses red and the HP value shakes when health is ≤ 28 HP.
-    - **Rocket Fuel**: Panel glows and gains a sharper border while rockets (Shift) are active.
+    - **Rocket Fuel**: Panel glows and gains a sharper red border while rockets (Shift) are active.
+    - **System Terminal**: A centered pop-up terminal for entering cheat codes.
     - **Respite Levels**: Route tags glow soft blue to indicate a recovery level.
-    - **Complete State**: Gold-themed glass with reflective text shadows for the campaign clear screen.
+    - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
 
 ---
-*Last Updated: March 27, 2026 (Rocket mechanic added, Red glassmorphism UI, 50-level campaign)*
+*Last Updated: March 27, 2026 (Cheat System, God Mode, Green Shadowless UI, 50-level campaign)*

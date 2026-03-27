@@ -80,6 +80,7 @@ const playerState = {
   rocketSpin: 0,
   rocketSpinBaseDirection: 1,
   isGodMode: false,
+  isRocketBoy: false,
 };
 
 // Handle Cheat Commands
@@ -89,6 +90,10 @@ window.addEventListener("cheat-command", (e) => {
   if (command === "godmode") {
     playerState.isGodMode = !playerState.isGodMode;
     uiManager.logToConsole(`God Mode: ${playerState.isGodMode ? "ENABLED" : "DISABLED"}`);
+  } else if (command === "rocketboy") {
+    playerState.isRocketBoy = !playerState.isRocketBoy;
+    if (playerState.isRocketBoy) playerState.rocketLevel = 1.0;
+    uiManager.logToConsole(`Unlimited Fuel: ${playerState.isRocketBoy ? "ENABLED" : "DISABLED"}`);
   } else {
     uiManager.logToConsole(`Unknown command: ${command}`);
   }
@@ -861,10 +866,17 @@ function updateRocketPhysics(delta) {
       playerState.rocketSpinBaseDirection = Math.random() < 0.5 ? 1 : -1;
     }
     playerState.isRocketActive = true;
-    playerState.rocketLevel = Math.max(
-      0,
-      playerState.rocketLevel - ROCKET_DRAIN_RATE * delta,
-    );
+    
+    if (!playerState.isRocketBoy) {
+      playerState.rocketLevel = Math.max(
+        0,
+        playerState.rocketLevel - ROCKET_DRAIN_RATE * delta,
+      );
+      // Drain extra gel for being a rocket
+      drainGel(ROCKET_GEL_COST * delta);
+    } else {
+      playerState.rocketLevel = 1.0;
+    }
 
     // Apply thrust
     const currentVel = playerBody.linvel();
@@ -876,9 +888,6 @@ function updateRocketPhysics(delta) {
       },
       true,
     );
-
-    // Drain extra gel for being a rocket
-    drainGel(ROCKET_GEL_COST * delta);
 
     // Thruster effects
     playerState.thrusterGlows.forEach((glow) => {
