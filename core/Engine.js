@@ -46,8 +46,8 @@ const JUMP_CAMERA_SHAKE_OFFSET = 0.22;
 const JUMP_CAMERA_SHAKE_ROLL = 0.018;
 
 const ROCKET_THRUST = 1;
-const ROCKET_DRAIN_RATE = 0.45; // per second
-const ROCKET_REFILL_RATE = 0.22; // per second
+const ROCKET_DRAIN_RATE = 0.8; // per second
+const ROCKET_REFILL_RATE = 0.05; // per second
 const ROCKET_GEL_COST = 0.1; // extra gel drain per second of flight
 
 const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
@@ -77,6 +77,8 @@ const playerState = {
   rocketLevel: 1.0,
   isRocketActive: false,
   rocketMeshes: [],
+  rocketSpin: 0,
+  rocketSpinBaseDirection: 1,
 };
 
 const levelState = {
@@ -519,7 +521,7 @@ function spawnParticles(
   }
 
   const particleScale =
-    color === 0x44ff44 ? Math.max(playerState.gelMass, 0.45) : 1.0;
+    (color === 0x44ff44 ? Math.max(playerState.gelMass, 0.45) : 1.0) * (options.sizeScale ?? 1.0);
   const particleSize = 0.08 * particleScale;
 
   for (let index = 0; index < count; index += 1) {
@@ -544,6 +546,7 @@ function spawnParticles(
       mesh: particle,
       velocity,
       life: 1.0,
+      lifeDecay: options.lifeDecay ?? 1.5,
     });
   }
 }
@@ -609,6 +612,7 @@ function resetPlayerForLevel() {
   jumpCameraState.phase = 0;
   playerState.rocketLevel = 1.0;
   playerState.isRocketActive = false;
+  playerState.rocketSpin = 0;
 
   if (playerBody) {
     playerBody.setTranslation(PLAYER_SPAWN, true);
@@ -685,7 +689,7 @@ function startLevelTransition() {
 
   const nextLevel = levelState.currentLevel + 1;
   levelState.isTransitioning = true;
-  levelState.transitionTimer = 0.5;
+  levelState.transitionTimer = 1.25; // 3 second delay
   levelState.pendingLevel = nextLevel <= LEVEL_COUNT ? nextLevel : "complete";
 
   if (playerBody) {
@@ -694,7 +698,23 @@ function startLevelTransition() {
 
   if (levelState.finalPlatform) {
     const { x, y, z } = levelState.finalPlatform.mesh.position;
-    spawnParticles(x, y + 0.35, z, 0xffd166, 16, 1.25);
+    // Colorful confetti spawn
+    const confettiColors = [
+      0xffd166, 0xff5f9d, 0x77ff88, 0x70e1ff, 0xff8a5b, 0xffffff,
+    ];
+    for (let c = 0; c < 8; c++) {
+      const color =
+        confettiColors[Math.floor(Math.random() * confettiColors.length)];
+      spawnParticles(
+        x + (Math.random() - 0.5) * 3,
+        y + 1.2,
+        z + (Math.random() - 0.5) * 3,
+        color,
+        15,
+        2.2 + Math.random() * 0.8,
+        { lifeDecay: 0.35 }, // Confetti lasts ~3 seconds
+      );
+    }
   }
 }
 
@@ -807,6 +827,10 @@ function updateRocketPhysics(delta) {
   const translation = playerBody.translation();
 
   if (isShiftPressed && hasFuel) {
+    if (!playerState.isRocketActive) {
+      // Pick a random spin direction on ignition
+      playerState.rocketSpinBaseDirection = Math.random() < 0.5 ? 1 : -1;
+    }
     playerState.isRocketActive = true;
     playerState.rocketLevel = Math.max(
       0,
@@ -818,7 +842,7 @@ function updateRocketPhysics(delta) {
     playerBody.setLinvel(
       {
         x: currentVel.x,
-        y: currentVel.y + ROCKET_THRUST, // Constant upward force
+        y: currentVel.y + ROCKET_THRUST,
         z: currentVel.z,
       },
       true,
@@ -838,18 +862,22 @@ function updateRocketPhysics(delta) {
         translation.y - 0.5,
         translation.z,
         0xff4433,
-        2,
+        4,
         0.5,
+        { sizeScale: 2.0 },
       );
     }
   } else {
     playerState.isRocketActive = false;
-    // Refill only if not using and grounded (optional: or just not using)
-    // Let's refill if not using.
-    playerState.rocketLevel = Math.min(
-      1.0,
-      playerState.rocketLevel + ROCKET_REFILL_RATE * delta,
-    );
+
+    // ONLY refill if Shift is NOT being held.
+    // This prevents "stutter-flight" where the player hovers at 0 fuel by consuming the tiny refill amount every frame.
+    if (!isShiftPressed) {
+      playerState.rocketLevel = Math.min(
+        1.0,
+        playerState.rocketLevel + ROCKET_REFILL_RATE * delta,
+      );
+    }
 
     playerState.thrusterGlows.forEach((glow) => {
       glow.scale.set(0, 0, 0);
@@ -864,6 +892,25 @@ function updateRocketPhysics(delta) {
     playerState.rocketMeshes[0].position.x = -0.5 * scaleXZ - 0.1;
   if (playerState.rocketMeshes[1])
     playerState.rocketMeshes[1].position.x = 0.5 * scaleXZ + 0.1;
+
+  // Manual spinning logic
+  if (playerState.isRocketActive) {
+    const horizontalMove =
+      (keys["KeyD"] || keys["ArrowRight"] ? 1 : 0) -
+      (keys["KeyA"] || keys["ArrowLeft"] ? 1 : 0);
+    
+    // Constant base spin + extra spin when moving sideways
+    const spinSpeed = 10.0 + Math.abs(horizontalMove) * 12.0;
+    const spinDirection = horizontalMove !== 0 ? -horizontalMove : playerState.rocketSpinBaseDirection;
+    
+    playerState.rocketSpin += delta * spinSpeed * spinDirection;
+  } else {
+    // Smoothly return rotation to zero when not boosting
+    playerState.rocketSpin *= Math.max(0, 1 - delta * 6.0);
+  }
+
+  player.rotation.y = playerState.rocketSpin;
+  player.rotation.z = 0;
 }
 
 function updateCamera(targetPosition) {
@@ -909,7 +956,7 @@ function updateTransition(delta) {
 function updateParticles(delta) {
   for (let index = particles.length - 1; index >= 0; index -= 1) {
     const particle = particles[index];
-    particle.life -= delta * 1.5;
+    particle.life -= delta * (particle.lifeDecay || 1.5);
     particle.velocity.y += gameConfig.gravity * delta;
     particle.mesh.position.addScaledVector(particle.velocity, delta);
     particle.mesh.material.opacity = particle.life;
