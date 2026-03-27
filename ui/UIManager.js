@@ -169,6 +169,11 @@ export class UIManager {
         this.logToConsole("Terminal online. Standing by for command.");
         this.consoleBooted = true;
       }
+    } else {
+      // Clear terminal on close
+      if (this.consoleLogEl) this.consoleLogEl.innerHTML = "";
+      if (this.consoleInputEl) this.consoleInputEl.value = "";
+      this.consoleBooted = false;
     }
   }
 

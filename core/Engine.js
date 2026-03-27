@@ -79,7 +79,20 @@ const playerState = {
   rocketMeshes: [],
   rocketSpin: 0,
   rocketSpinBaseDirection: 1,
+  isGodMode: false,
 };
+
+// Handle Cheat Commands
+window.addEventListener("cheat-command", (e) => {
+  const command = e.detail.toLowerCase();
+  
+  if (command === "godmode") {
+    playerState.isGodMode = !playerState.isGodMode;
+    uiManager.logToConsole(`God Mode: ${playerState.isGodMode ? "ENABLED" : "DISABLED"}`);
+  } else {
+    uiManager.logToConsole(`Unknown command: ${command}`);
+  }
+});
 
 const levelState = {
   currentLevel: 1,
@@ -506,7 +519,8 @@ function drainGel(amount) {
   if (
     playerState.isGameOver ||
     levelState.isTransitioning ||
-    levelState.isGameComplete
+    levelState.isGameComplete ||
+    playerState.isGodMode
   ) {
     return;
   }
