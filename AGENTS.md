@@ -18,12 +18,19 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - `core/Engine.js` owns:
   - Three.js setup
   - Rapier world setup
-  - player movement and gel drain
+  - player bridge / physics snapshotting
   - level generation
   - level progression
   - platform creation and animation
   - deterministic test hooks
-- Lua no longer owns level layout. Lua now only initializes the space backdrop and optional player behaviors.
+- `scripts/player.lua` owns the player controller:
+  - movement input
+  - jump handling and coyote timing
+  - rocket boost / fuel drain
+  - gel drain and death checks
+  - landing feedback
+  - cheat command handling
+- Lua no longer owns level layout. `scripts/world.lua` still initializes the space backdrop, while `scripts/player.lua` now owns the runtime player behavior.
 
 ### 2. Physics Model
 - Rapier initializes asynchronously through `RAPIER.init()`.
@@ -34,7 +41,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - There is no physical ground plane in the current campaign. The game starts in space with the player on a floating launch platform.
 
 ### 3. Player / Gel Rules
-- Horizontal movement is direct X velocity assignment.
+- Horizontal movement is direct X velocity assignment, now driven from `scripts/player.lua`.
 - Jumping uses `jumpImpulse = 12`.
 - Releasing jump early damps upward velocity for variable jump height.
 - Landing after a fall triggers a short camera shake, and longer airtime produces stronger impact.
@@ -346,6 +353,8 @@ Use these when validating layout generation or progression through Playwright or
 - route label
 - whether the level is a respite
 - player position / velocity / gel mass
+- rocket fuel / active boost state
+- cheat flags for god mode and rocketboy
 - camera shake state for landing feedback
 - all current platform positions and final-flag state
 
@@ -368,9 +377,9 @@ Use these when validating layout generation or progression through Playwright or
 - `scripts/world.lua`
   - base-world creation only
 - `scripts/player.lua`
-  - optional scripted player abilities, currently dash
+  - authoritative player controller, Lua-owned movement / rocket / drain logic
 - `scripts/config.lua`
-  - exposes movement constants into Lua
+  - mirrors movement / economy / detection / rocket config into Lua
 - `configs/world-config.json`
   - centralized global parameters (gravity, colors, level generation)
 - `configs/player-config.json`
@@ -417,7 +426,8 @@ Adjust these in `configs/player-config.json`:
 
 ### If You Change Player Scale Rules
 - do not manually resize the rigid body elsewhere
-- update `playerState.gelMass` and let collider synchronization rebuild the collider
+- update `playerState.gelMass` and let the JS bridge rebuild the collider
+- keep `scripts/player.lua` and the `game.player.*` bridge methods in sync when adding new player-state fields
 
 ### If You Debug Progression
 Look at:
@@ -427,6 +437,7 @@ Look at:
 - `estimateLayoutDrain()`
 - `startLevelTransition()`
 - `queueLevelRestart()`
+- `scripts/player.lua` for player-specific state transitions and drain timing
 
 ### UI Design (Green Glassmorphism)
 - The UI follows a medical/scifi **green glassmorphism** aesthetic:
@@ -442,4 +453,4 @@ Look at:
     - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
 
 ---
-*Last Updated: March 27, 2026 (Cheat System, God Mode, Green Shadowless UI, 50-level campaign)*
+*Last Updated: March 27, 2026 (Lua-owned player controller, Cheat System, God Mode, Green Shadowless UI, 50-level campaign)*

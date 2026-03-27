@@ -105,22 +105,6 @@ const playerState = {
   isRocketBoy: false,
 };
 
-// Handle Cheat Commands
-window.addEventListener("cheat-command", (e) => {
-  const command = e.detail.toLowerCase();
-  
-  if (command === "godmode") {
-    playerState.isGodMode = !playerState.isGodMode;
-    uiManager.logToConsole(`God Mode: ${playerState.isGodMode ? "ENABLED" : "DISABLED"}`);
-  } else if (command === "rocketboy") {
-    playerState.isRocketBoy = !playerState.isRocketBoy;
-    if (playerState.isRocketBoy) playerState.rocketLevel = 1.0;
-    uiManager.logToConsole(`Unlimited Fuel: ${playerState.isRocketBoy ? "ENABLED" : "DISABLED"}`);
-  } else {
-    uiManager.logToConsole(`Unknown command: ${command}`);
-  }
-});
-
 const levelState = {
   currentLevel: 1,
   totalLevels: LEVEL_COUNT,
@@ -143,10 +127,163 @@ const jumpCameraState = {
 };
 
 const gameConfig = {
+  ...playerConfig,
   playerSpeed: PLAYER_SPEED,
   jumpImpulse: JUMP_IMPULSE,
   gravity: INITIAL_GRAVITY,
 };
+
+window.addEventListener("cheat-command", (e) => {
+  const command = String(e.detail || "").toLowerCase();
+  luaRuntime.callFunction("onCheatCommand", command);
+});
+
+function getPlayerSnapshot() {
+  if (!playerBody) {
+    return null;
+  }
+
+  const translation = playerBody.translation();
+  const velocity = playerBody.linvel();
+  const hit = sampleGroundHit(translation);
+  const finalPlatform = levelState.finalPlatform;
+  const isFinalHit =
+    !!hit && !!finalPlatform && hit.collider.handle === finalPlatform.collider.handle;
+
+  return {
+    translation: { x: translation.x, y: translation.y, z: translation.z },
+    velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+    isGrounded: !!hit,
+    groundHitHandle: hit ? hit.collider.handle : null,
+    hitFinal: isFinalHit,
+    isTransitioning: levelState.isTransitioning,
+    isGameComplete: levelState.isGameComplete,
+    isGameOver: playerState.isGameOver,
+  };
+}
+
+function applyPlayerFrameState(nextState = {}) {
+  if (!nextState) {
+    return;
+  }
+
+  if (typeof nextState.gelMass === "number") {
+    playerState.gelMass = clamp(nextState.gelMass, 0, 1);
+    syncPlayerCollider();
+    uiManager.updateHealth(playerState.gelMass);
+  }
+
+  if (typeof nextState.rocketLevel === "number") {
+    playerState.rocketLevel = clamp(nextState.rocketLevel, 0, 1);
+  }
+
+  if (typeof nextState.isRocketActive === "boolean") {
+    playerState.isRocketActive = nextState.isRocketActive;
+  }
+
+  if (typeof nextState.rocketSpin === "number") {
+    playerState.rocketSpin = nextState.rocketSpin;
+  }
+
+  if (typeof nextState.rocketSpinBaseDirection === "number") {
+    playerState.rocketSpinBaseDirection = nextState.rocketSpinBaseDirection;
+  }
+
+  if (typeof nextState.isGodMode === "boolean") {
+    playerState.isGodMode = nextState.isGodMode;
+  }
+
+  if (typeof nextState.isRocketBoy === "boolean") {
+    playerState.isRocketBoy = nextState.isRocketBoy;
+  }
+
+  if (typeof nextState.isGameOver === "boolean") {
+    playerState.isGameOver = nextState.isGameOver;
+  }
+
+  if (typeof nextState.lastGrounded === "boolean") {
+    playerState.lastGrounded = nextState.lastGrounded;
+  }
+
+  if (typeof nextState.lastVelY === "number") {
+    playerState.lastVelY = nextState.lastVelY;
+  }
+
+  if (typeof nextState.airborneTime === "number") {
+    playerState.airborneTime = nextState.airborneTime;
+  }
+
+  if (typeof nextState.lastLandingAirTime === "number") {
+    playerState.lastLandingAirTime = nextState.lastLandingAirTime;
+  }
+
+  if (typeof nextState.lastLandingImpactSpeed === "number") {
+    playerState.lastLandingImpactSpeed = nextState.lastLandingImpactSpeed;
+  }
+
+  if (nextState.velocity && playerBody) {
+    playerBody.setLinvel(
+      {
+        x: nextState.velocity.x ?? 0,
+        y: nextState.velocity.y ?? 0,
+        z: nextState.velocity.z ?? 0,
+      },
+      true,
+    );
+  }
+
+  if (nextState.jelly) {
+    const jelly = nextState.jelly;
+    if (jelly.velocity) {
+      playerState.jellyUniforms.uVelocity.value.set(
+        jelly.velocity.x ?? 0,
+        jelly.velocity.y ?? 0,
+        jelly.velocity.z ?? 0,
+      );
+    }
+    if (typeof jelly.impact === "number") {
+      playerState.jellyUniforms.uImpact.value = jelly.impact;
+    }
+    if (typeof jelly.time === "number") {
+      playerState.jellyUniforms.uTime.value = jelly.time;
+    }
+    if (jelly.scale) {
+      playerState.jellyUniforms.uScale.value.set(
+        jelly.scale.x ?? 1,
+        jelly.scale.y ?? 1,
+        jelly.scale.z ?? jelly.scale.x ?? 1,
+      );
+    }
+    if (typeof jelly.tilt === "number") {
+      playerState.jellyUniforms.uTilt.value = jelly.tilt;
+    }
+  }
+
+  if (playerState.rocketMeshes.length > 0) {
+    const scaleXZ =
+      nextState.jelly?.scale?.x ?? playerState.jellyUniforms.uScale.value.x;
+    if (playerState.rocketMeshes[0]) {
+      playerState.rocketMeshes[0].position.x = -0.5 * scaleXZ - 0.1;
+    }
+    if (playerState.rocketMeshes[1]) {
+      playerState.rocketMeshes[1].position.x = 0.5 * scaleXZ + 0.1;
+    }
+  }
+
+  if (playerState.thrusterGlows && playerState.thrusterGlows.length > 0) {
+    const glowScale = playerState.isRocketActive ? 1 : 0;
+    playerState.thrusterGlows.forEach((glow) => {
+      glow.scale.set(glowScale, glowScale ? 1 : 0, glowScale);
+    });
+  }
+
+  if (player) {
+    player.rotation.y = playerState.rocketSpin;
+    player.rotation.z = 0;
+  }
+
+  uiManager.updateRocket(playerState.rocketLevel, playerState.isRocketActive);
+}
 
 const existingCanvas = document.querySelector("canvas");
 if (existingCanvas) {
@@ -194,6 +331,54 @@ async function init() {
       createGround: () => createGround(),
       createPlatform: (x, y, z, w, h, d, color) =>
         createPlatform(x, y, z, w, h, d, color),
+      logConsole: (message) => uiManager.logToConsole(String(message)),
+      random: () => Math.random(),
+      startLevelTransition: () => startLevelTransition(),
+      triggerGameOver: (cause, delayMs = 0) => triggerGameOver(cause, delayMs),
+      triggerSpaceshipStrike: (x, y, z) =>
+        triggerSpaceshipStrike({ x, y, z }),
+      isKeyDown: (code) => !!keys[code],
+      player: {
+        ensure: () => {
+          if (!player) {
+            createPlayer();
+          }
+        },
+        spawn: (x, y, z) => {
+          if (!player) createPlayer();
+          playerBody.setTranslation({ x, y, z }, true);
+          playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          player.position.set(x, y, z);
+          playerState._lastColliderMass = null;
+        },
+        resetPresentation: () => {
+          camera.position.set(0, 4.4, 14);
+          camera.lookAt(0, 2.2, 0);
+          jumpCameraState.shake = 0;
+          jumpCameraState.phase = 0;
+          uiManager.hideGameOver();
+          uiManager.hideGameComplete();
+        },
+        read: () => getPlayerSnapshot(),
+        apply: (state) => applyPlayerFrameState(state),
+        drainGel: (amount) => {
+          drainGel(amount);
+          return playerState.gelMass;
+        },
+        spawnParticles: (
+          x,
+          y,
+          z,
+          color,
+          count = 8,
+          speedScale = 1.0,
+          options = {},
+        ) => spawnParticles(x, y, z, color, count, speedScale, options),
+        triggerLandingCameraEffect: (airborneTime, impactSpeed) =>
+          triggerLandingCameraEffect(airborneTime, impactSpeed),
+        syncCollider: (force = false) => syncPlayerCollider(force),
+      },
       spawnPlayer: (x, y, z) => {
         if (!player) createPlayer();
         playerBody.setTranslation({ x, y, z }, true);
@@ -202,7 +387,6 @@ async function init() {
         gameConfig.gravity = y;
         world.gravity = { x: 0, y, z: 0 };
       },
-      isKeyDown: (code) => !!keys[code],
       applyImpulse: (x, y, z) => {
         if (playerBody) playerBody.applyImpulse({ x, y, z }, true);
       },
@@ -645,7 +829,7 @@ function syncPlayerCollider(force = false) {
     if (playerCollider) {
       world.removeCollider(playerCollider, false);
     }
-    const halfSize = 0.5 * currentMass;
+    const halfSize = Math.max(0.05, 0.5 * currentMass);
     playerCollider = world.createCollider(
       RAPIER.ColliderDesc.cuboid(halfSize, halfSize, halfSize)
         .setFriction(0)
@@ -675,44 +859,12 @@ function clearParticles() {
 }
 
 function resetPlayerForLevel() {
-  playerState.gelMass = 1.0;
-  playerState.isGameOver = false;
-  playerState.lastGrounded = true;
-  playerState.lastVelY = 0;
-  playerState.airborneTime = 0;
-  playerState.lastLandingAirTime = 0;
-  playerState.lastLandingImpactSpeed = 0;
-  playerState.particleTimer = 0;
-  playerState.walkDistanceAccumulator = 0;
-  playerState.groundedCoyoteTimer = 0;
-  playerState.spawnLandingGrace = true;
-  playerState.jellyUniforms.uVelocity.value.set(0, 0, 0);
-  playerState.jellyUniforms.uImpact.value = 0;
-  playerState.jellyUniforms.uTime.value = 0;
-  playerState.jellyUniforms.uScale.value.set(1, 1, 1);
-  playerState.jellyUniforms.uTilt.value = 0;
-  playerState._lastColliderMass = null;
-  jumpCameraState.phase = 0;
-  playerState.rocketLevel = 1.0;
-  playerState.isRocketActive = false;
-  playerState.rocketSpin = 0;
-
-  if (playerBody) {
-    playerBody.setTranslation(PLAYER_SPAWN, true);
-    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    syncPlayerCollider(true);
-  }
-
-  if (player) {
-    player.position.set(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z);
-  }
-
-  camera.position.set(0, 4.4, 14);
-  camera.lookAt(0, 2.2, 0);
-  uiManager.hideGameOver();
-  uiManager.hideGameComplete();
-  uiManager.updateHealth(playerState.gelMass);
+  luaRuntime.callFunction(
+    "onPlayerLevelReset",
+    PLAYER_SPAWN.x,
+    PLAYER_SPAWN.y,
+    PLAYER_SPAWN.z,
+  );
 }
 
 function buildLevel(levelNumber) {
@@ -828,50 +980,6 @@ function finishCampaign() {
   uiManager.showGameComplete();
 }
 
-function handleInput() {
-  const velocity = playerBody.linvel();
-  const translation = playerBody.translation();
-  let moveX = 0;
-  const hit = sampleGroundHit(translation);
-  const isGrounded = hit !== null;
-  playerState.groundedCoyoteTimer = isGrounded
-    ? PLAYER_GROUND_COYOTE_TIME
-    : Math.max(0, playerState.groundedCoyoteTimer - 1 / 60);
-  const canJump = isGrounded || playerState.groundedCoyoteTimer > 0;
-
-  if (!levelState.isTransitioning && !levelState.isGameComplete) {
-    if (keys["KeyA"] || keys["ArrowLeft"]) moveX -= gameConfig.playerSpeed;
-    if (keys["KeyD"] || keys["ArrowRight"]) moveX += gameConfig.playerSpeed;
-
-    if (keys.Space && canJump) {
-      playerBody.setLinvel(
-        { x: velocity.x, y: gameConfig.jumpImpulse, z: velocity.z },
-        true,
-      );
-      playerState.groundedCoyoteTimer = 0;
-      spawnParticles(
-        translation.x,
-        translation.y - 0.4,
-        translation.z,
-        0x44ff44,
-        8,
-        1.0,
-        { drainGelTotal: JUMP_GEL_COST },
-      );
-    }
-  }
-
-  if (!keys.Space && velocity.y > 0) {
-    playerBody.setLinvel(
-      { x: velocity.x, y: velocity.y * 0.9, z: velocity.z },
-      true,
-    );
-  }
-
-  playerBody.setLinvel({ x: moveX, y: playerBody.linvel().y, z: 0 }, true);
-  return { translation, hit, isGrounded };
-}
-
 function sampleGroundHit(translation) {
   for (const xOffset of PLAYER_GROUND_RAY_OFFSETS) {
     const ray = new RAPIER.Ray(
@@ -897,107 +1005,6 @@ function sampleGroundHit(translation) {
   }
 
   return null;
-}
-
-function updateRocketPhysics(delta) {
-  if (playerState.isGameOver || levelState.isTransitioning) {
-    playerState.isRocketActive = false;
-    return;
-  }
-
-  const isShiftPressed = keys["ShiftLeft"] || keys["ShiftRight"];
-  const hasFuel = playerState.rocketLevel > 0;
-  const translation = playerBody.translation();
-
-  if (isShiftPressed && hasFuel) {
-    if (!playerState.isRocketActive) {
-      // Pick a random spin direction on ignition
-      playerState.rocketSpinBaseDirection = Math.random() < 0.5 ? 1 : -1;
-    }
-    playerState.isRocketActive = true;
-    
-    if (!playerState.isRocketBoy) {
-      playerState.rocketLevel = Math.max(
-        0,
-        playerState.rocketLevel - ROCKET_DRAIN_RATE * delta,
-      );
-      // Drain extra gel for being a rocket
-      drainGel(ROCKET_GEL_COST * delta);
-    } else {
-      playerState.rocketLevel = 1.0;
-    }
-
-    // Apply thrust
-    const currentVel = playerBody.linvel();
-    playerBody.setLinvel(
-      {
-        x: currentVel.x,
-        y: currentVel.y + ROCKET_THRUST,
-        z: currentVel.z,
-      },
-      true,
-    );
-
-    // Thruster effects
-    playerState.thrusterGlows.forEach((glow) => {
-      glow.scale.set(1, 1 + Math.random() * 0.5, 1);
-    });
-
-    if (Math.random() < 0.3) {
-      spawnParticles(
-        translation.x + (Math.random() - 0.5) * 1.2,
-        translation.y - 0.5,
-        translation.z,
-        0xff4433,
-        4,
-        0.5,
-        { sizeScale: 2.0 },
-      );
-    }
-  } else {
-    playerState.isRocketActive = false;
-
-    // ONLY refill if Shift is NOT being held.
-    // This prevents "stutter-flight" where the player hovers at 0 fuel by consuming the tiny refill amount every frame.
-    if (!isShiftPressed) {
-      playerState.rocketLevel = Math.min(
-        1.0,
-        playerState.rocketLevel + ROCKET_REFILL_RATE * delta,
-      );
-    }
-
-    playerState.thrusterGlows.forEach((glow) => {
-      glow.scale.set(0, 0, 0);
-    });
-  }
-
-  uiManager.updateRocket(playerState.rocketLevel, playerState.isRocketActive);
-
-  // Sync rocket positions to player scale
-  const scaleXZ = playerState.jellyUniforms.uScale.value.x;
-  if (playerState.rocketMeshes[0])
-    playerState.rocketMeshes[0].position.x = -0.5 * scaleXZ - 0.1;
-  if (playerState.rocketMeshes[1])
-    playerState.rocketMeshes[1].position.x = 0.5 * scaleXZ + 0.1;
-
-  // Manual spinning logic
-  if (playerState.isRocketActive) {
-    const horizontalMove =
-      (keys["KeyD"] || keys["ArrowRight"] ? 1 : 0) -
-      (keys["KeyA"] || keys["ArrowLeft"] ? 1 : 0);
-    
-    // Constant base spin + extra spin when moving sideways
-    const spinSpeed = 10.0 + Math.abs(horizontalMove) * 12.0;
-    const spinDirection = horizontalMove !== 0 ? -horizontalMove : playerState.rocketSpinBaseDirection;
-    
-    playerState.rocketSpin += delta * spinSpeed * spinDirection;
-  } else {
-    // Smoothly return rotation to zero when not boosting
-    playerState.rocketSpin *= Math.max(0, 1 - delta * 6.0);
-  }
-
-  player.rotation.y = playerState.rocketSpin;
-  player.rotation.z = 0;
 }
 
 function updateCamera(targetPosition) {
@@ -1057,9 +1064,10 @@ function updateParticles(delta) {
   }
 }
 
-function updatePlatforms(hit, delta) {
+function updatePlatforms(groundHitHandle, delta) {
   for (const platform of platforms) {
-    const isSteppedOn = hit && hit.collider.handle === platform.collider.handle;
+    const isSteppedOn =
+      groundHitHandle !== null && groundHitHandle === platform.collider.handle;
     const sinkDepth = platform.isFinal ? 0.42 : 0.58;
     const sinkSpeed = platform.isFinal ? 0.08 : 0.1;
     const returnSpeed = platform.isFinal ? 0.045 : 0.03;
@@ -1101,109 +1109,6 @@ function updatePlatforms(hit, delta) {
   }
 }
 
-function updateWalkDrain(delta, isGrounded, velocity) {
-  if (
-    !isGrounded ||
-    Math.abs(velocity.x) < 0.25 ||
-    levelState.isTransitioning
-  ) {
-    return;
-  }
-
-  playerState.walkDistanceAccumulator += Math.abs(velocity.x) * delta;
-  if (playerState.walkDistanceAccumulator < WALK_STEP_DISTANCE) {
-    return;
-  }
-
-  playerState.walkDistanceAccumulator -= WALK_STEP_DISTANCE;
-  const translation = playerBody.translation();
-  spawnParticles(
-    translation.x + (Math.random() - 0.5) * 0.35,
-    translation.y - 0.48,
-    translation.z,
-    0x44ff44,
-    4,
-    0.75,
-    { drainGelTotal: WALK_GEL_COST },
-  );
-}
-
-function updateJelly(delta, isGrounded) {
-  const velocity = playerBody.linvel();
-  playerState.jellyUniforms.uTime.value += delta;
-
-  if (isGrounded && !playerState.lastGrounded) {
-    const impactSpeed = Math.abs(playerState.lastVelY || 0);
-    playerState.jellyUniforms.uImpact.value = impactSpeed;
-    playerState.lastLandingAirTime = playerState.airborneTime;
-    playerState.lastLandingImpactSpeed = impactSpeed;
-    triggerLandingCameraEffect(playerState.airborneTime, impactSpeed);
-
-    if (playerState.spawnLandingGrace) {
-      playerState.spawnLandingGrace = false;
-    } else {
-      const particleCount = Math.min(6 + Math.floor(impactSpeed), 18);
-      const speedScale = 0.3 + impactSpeed / 12;
-      const pos = playerBody.translation();
-      spawnParticles(
-        pos.x,
-        pos.y - 0.5 * playerState.jellyUniforms.uScale.value.y,
-        pos.z,
-        0x44ff44,
-        particleCount,
-        speedScale,
-      );
-    }
-  }
-
-  if (isGrounded) {
-    playerState.airborneTime = 0;
-  } else {
-    playerState.airborneTime += delta;
-  }
-
-  playerState.lastGrounded = isGrounded;
-  playerState.lastVelY = velocity.y;
-
-  let targetScaleY = 1.0;
-  let targetScaleXZ = 1.0;
-
-  if (!isGrounded) {
-    const stretch = Math.abs(velocity.y) * 0.025;
-    targetScaleY = 1.0 + stretch;
-    targetScaleXZ = 1.0 - stretch * 0.5;
-  } else {
-    const speedFactor = Math.abs(velocity.x) * 0.02;
-    targetScaleXZ = 1.0 + speedFactor;
-    targetScaleY = 1.0 - speedFactor * 0.2;
-  }
-
-  targetScaleY *= playerState.gelMass;
-  targetScaleXZ *= playerState.gelMass;
-
-  const stiffness = 15.0;
-  playerState.jellyUniforms.uScale.value.y +=
-    (targetScaleY - playerState.jellyUniforms.uScale.value.y) *
-    stiffness *
-    delta;
-  playerState.jellyUniforms.uScale.value.x +=
-    (targetScaleXZ - playerState.jellyUniforms.uScale.value.x) *
-    stiffness *
-    delta;
-  playerState.jellyUniforms.uScale.value.z =
-    playerState.jellyUniforms.uScale.value.x;
-
-  const targetTilt = velocity.x * -0.05;
-  playerState.jellyUniforms.uTilt.value +=
-    (targetTilt - playerState.jellyUniforms.uTilt.value) * 10.0 * delta;
-
-  playerState.jellyUniforms.uVelocity.value.set(
-    velocity.x,
-    velocity.y,
-    velocity.z,
-  );
-}
-
 function updateFrame(delta) {
   updateParticles(delta);
 
@@ -1218,35 +1123,22 @@ function updateFrame(delta) {
 
   world.step();
   luaRuntime.callFunction("onUpdate", delta);
+  const snapshot = getPlayerSnapshot();
+  if (!snapshot) {
+    return;
+  }
 
-  const { translation, hit, isGrounded } = handleInput();
-  const velocity = playerBody.linvel();
-
-  syncPlayerCollider();
-  updateJelly(delta, isGrounded);
   updateLandingCameraEffect(delta);
-  updateWalkDrain(delta, isGrounded, velocity);
-  updatePlatforms(hit, delta);
-  updateRocketPhysics(delta);
+  updatePlatforms(snapshot.groundHitHandle, delta);
 
-  if (
-    hit &&
-    levelState.finalPlatform &&
-    hit.collider.handle === levelState.finalPlatform.collider.handle
-  ) {
-    startLevelTransition();
+  if (snapshot.isGameOver || levelState.isGameComplete) {
+    player.position.copy(snapshot.translation);
+    updateCamera(snapshot.translation);
+    return;
   }
 
-  if (translation.y < -10) {
-    triggerGameOver("fall");
-  }
-
-  if (translation.y > SPACESHIP_ALTITUDE_THRESHOLD) {
-    triggerSpaceshipStrike(translation);
-  }
-
-  player.position.copy(translation);
-  updateCamera(translation);
+  player.position.copy(snapshot.translation);
+  updateCamera(snapshot.translation);
 }
 
 function animate() {
@@ -1650,6 +1542,10 @@ function setupTestingHooks() {
               playerState.lastLandingImpactSpeed.toFixed(3),
             ),
             gelMass: Number(playerState.gelMass.toFixed(3)),
+            rocketLevel: Number(playerState.rocketLevel.toFixed(3)),
+            rocketActive: playerState.isRocketActive,
+            godMode: playerState.isGodMode,
+            rocketBoy: playerState.isRocketBoy,
           }
         : null,
       platforms: platforms.map((platform) => ({

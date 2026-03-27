@@ -15,4 +15,12 @@ function onUpdate(delta)
     Player.update(delta)
 end
 
+function onPlayerLevelReset(x, y, z)
+    Player.onPlayerLevelReset(x, y, z)
+end
+
+function onCheatCommand(command)
+    Player.onCheatCommand(command)
+end
+
 print("All Modules Loaded Successfully!")
