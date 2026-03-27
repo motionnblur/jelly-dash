@@ -45,6 +45,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 ### 3. Player / Gel Rules
 - Horizontal movement is direct X velocity assignment, now driven from `scripts/player/main.lua`.
 - Jumping uses `jumpImpulse = 12`.
+- The player has a **double jump**: a second jump is available while airborne if the first jump (or coyote jump) has already been used. `state.doubleJumpUsed` tracks this and resets each time the player is grounded. Both jumps cost the same gel and produce the same sound/particles.
 - Releasing jump early damps upward velocity for variable jump height.
 - Landing after a fall triggers a short camera shake, and longer airtime produces stronger impact.
 - `gelMass` starts each level at `1.0`.
@@ -89,6 +90,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 - All route platforms are kinematic hexagonal prisms.
 - Platforms sink slightly while stepped on and lerp back when cleared.
 - From level 6 onward, some non-final platforms also oscillate vertically in a deterministic loop.
+- Some platforms also oscillate **horizontally** (`swingAmplitude`, `swingSpeed`). When the player is standing on a swinging platform, its X velocity is computed each frame (`deltaX / delta`) and added to the player's linvel so the player is carried along. This is handled in `updatePlatforms()` in `core/Engine.js`.
 - The final platform is visually distinct:
   - gold material
   - ring/beacon decoration
@@ -531,16 +533,20 @@ Look at:
 ### UI Design (Green Glassmorphism)
 - The UI follows a medical/scifi **green glassmorphism** aesthetic:
   - Frosted glass effects using `backdrop-filter: blur(28px)` and high saturation.
-  - Semi-transparent `rgba(92, 255, 120, 0.15)` backgrounds with vibrant green `rgba(92, 255, 120, 0.25)` borders.
+  - Semi-transparent backgrounds with vibrant green `rgba(92, 255, 120, 0.25)` borders.
   - **Shadowless Design**: All `box-shadow` and `text-shadow` properties are removed for a clean, futuristic look.
   - Premium typography using the **Outfit** font with high-contrast weights (700-800) in green tones.
-  - Interactive states:
-    - **Health Warning**: Status panel pulses red and the HP value shakes when health is ≤ 28 HP.
-    - **Rocket Fuel**: Panel glows and gains a sharper red border while rockets (Shift) are active.
-    - **System Terminal**: A centered pop-up terminal for entering cheat codes.
-    - **Respite Levels**: Route tags glow soft blue to indicate a recovery level.
-    - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
-    - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
+- **Portrait Layout**: The game renders in a **9:16 portrait canvas** (`getPortraitSize()` in `core/Engine.js` caps width at `height × 9/16`). The canvas is centered in the browser window via a flex body. `#game-wrap` is a `position: relative` container sized by JS; the canvas and `#overlay` live inside it. All other overlays remain `position: fixed` and cover the full viewport.
+- **HUD Layout**:
+  - **Stat panel** (`#stat-panel`): a single compact 148 px-wide glass panel at top-left. Contains two icon rows — `⬡` (GEL / HP) and `▲` (Rocket / %) — each with a value and a thin 5 px bar. Rows are separated by a 1 px divider.
+  - **Route panel** (`.level-panel`): glass panel positioned `position: absolute; bottom: 8px; left: 8px` inside `#game-wrap`. Shows current level and route tag.
+- Interactive states:
+  - **Health Warning**: `#health-value` shakes and `.health-panel .stat-icon` turns red when health is ≤ 28 HP.
+  - **Rocket Active**: `.stat-icon--boost` brightens while rockets are active; `.rocket-panel.is-empty` dims when fuel is zero.
+  - **System Terminal**: A centered pop-up terminal for entering cheat codes.
+  - **Respite Levels**: Route tags glow soft blue to indicate a recovery level.
+  - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
+  - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 27, 2026 (win sound, pause system, ESC menu, options menu with live audio controls, player freeze on level completion)*
+*Last Updated: March 27, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, route panel moved to bottom-left)*

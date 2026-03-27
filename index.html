@@ -16,42 +16,39 @@
             <p class="loading-copy">Balancing jump cost, walking drain, and the next final hex.</p>
         </div>
     </div>
+    <div id="game-wrap">
     <div id="overlay">
-        <div class="hud-panel health-panel" aria-label="Gel health">
-            <p class="panel-kicker">Status</p>
-            <div class="health-shell">
-                <div class="health-row">
-                    <span class="health-label">GEL</span>
-                    <span id="health-value">100</span>
-                    <span class="health-unit">HP</span>
+        <div id="stat-panel">
+            <div class="vbar-col health-panel" aria-label="Gel health">
+                <span class="stat-icon">⬡</span>
+                <div class="vbar-track">
+                    <div id="health-fill" class="vbar-fill"></div>
                 </div>
-                <div class="health-track" aria-hidden="true">
-                    <div id="health-fill"></div>
+                <div class="vbar-label">
+                    <span id="health-value" class="stat-val">100</span>
+                    <span class="stat-unit">HP</span>
+                </div>
+            </div>
+            <div class="vbar-col rocket-panel" aria-label="Rocket fuel">
+                <span class="stat-icon stat-icon--boost">▲</span>
+                <div class="vbar-track">
+                    <div id="rocket-fill" class="vbar-fill vbar-fill--rocket"></div>
+                </div>
+                <div class="vbar-label">
+                    <span id="rocket-value" class="stat-val">100</span>
+                    <span class="stat-unit">%</span>
                 </div>
             </div>
         </div>
-        <div class="hud-panel rocket-panel" aria-label="Rocket fuel">
-            <p class="panel-kicker">Boost</p>
-            <div class="health-shell">
-                <div class="health-row">
-                    <span class="health-label">ROCKET</span>
-                    <span id="rocket-value">100</span>
-                    <span class="health-unit">%</span>
-                </div>
-                <div class="health-track" aria-hidden="true">
-                    <div id="rocket-fill"></div>
-                </div>
-            </div>
-            <p id="rocket-hint">HOLD SHIFT</p>
+    </div>
+    <div class="hud-panel level-panel" aria-live="polite">
+        <p class="panel-kicker">Route</p>
+        <div class="level-row">
+            <span class="level-label">LEVEL</span>
+            <span id="level-value">1 / 100</span>
         </div>
-        <div class="hud-panel level-panel" aria-live="polite">
-            <p class="panel-kicker">Route</p>
-            <div class="level-row">
-                <span class="level-label">LEVEL</span>
-                <span id="level-value">1 / 100</span>
-            </div>
-            <p id="route-tag">OPENING ARC</p>
-        </div>
+        <p id="route-tag">OPENING ARC</p>
+    </div>
     </div>
 
     <div id="game-over">

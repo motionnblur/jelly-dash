@@ -30,6 +30,16 @@ body {
   color: var(--font-main);
   font-family: "Outfit", sans-serif;
   -webkit-font-smoothing: antialiased;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+#game-wrap {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 canvas {
@@ -39,82 +49,114 @@ canvas {
 /* HUD Overlay */
 #overlay {
   position: absolute;
-  inset: 22px 22px auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 22px;
+  top: 8px;
+  left: 8px;
   z-index: 10;
   pointer-events: none;
 }
 
-.hud-panel {
-  position: relative;
-  min-width: 260px;
-  padding: 18px 22px 22px;
+/* Stat Panel */
+#stat-panel {
+  box-sizing: border-box;
+  width: 72px;
+  padding: 10px 10px;
   border: 1px solid var(--glass-border);
-  border-radius: 24px;
-  background: 
-    linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, rgba(92, 255, 120, 0.02) 100%),
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(92, 255, 120, 0.09) 0%, rgba(92, 255, 120, 0.02) 100%),
     var(--glass);
-  box-shadow: none;
   backdrop-filter: blur(28px) saturate(120%);
   -webkit-backdrop-filter: blur(28px) saturate(120%);
   overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: stretch;
 }
 
-/* Subtle inner shine */
-.hud-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, transparent 45%);
-  pointer-events: none;
+.vbar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  gap: 6px;
 }
 
-.panel-kicker {
-  margin: 0 0 12px;
-  font-size: 0.65rem;
+.vbar-track {
+  flex: 1;
+  width: 10px;
+  min-height: 80px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.vbar-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gel-gradient);
+  transition: height 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.vbar-fill--rocket {
+  background: var(--rocket-gradient);
+  transition: height 0.1s linear;
+}
+
+.vbar-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.stat-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--gel);
+}
+
+.stat-icon--boost {
+  color: var(--rocket);
+  font-size: 0.75rem;
+}
+
+.stat-val {
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
+  color: var(--font-bright);
+  line-height: 1;
+}
+
+.stat-unit {
+  font-size: 0.42rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   color: var(--font-muted);
+  text-transform: uppercase;
 }
 
-.health-shell {
-  display: grid;
-  gap: 12px;
-}
-
-.health-row,
 .level-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 16px;
+  gap: 10px;
 }
 
-.health-label,
 .level-label {
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   color: var(--font-muted);
 }
 
-#health-value,
 #level-value {
-  font-size: 1.15rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--font-bright);
-}
-
-.health-unit {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--font-muted);
-  margin-left: 3px;
 }
 
 /* Critical State */
@@ -123,56 +165,12 @@ canvas {
   animation: healthShake 0.34s ease-in-out infinite;
 }
 
-.health-panel.is-critical {
-  border-color: rgba(255, 124, 107, 0.8);
-  animation: glassPulseRed 1.2s ease-in-out infinite;
-}
-
-/* Tracks & Fills */
-.health-track {
-  width: 100%;
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: none;
-}
-
-#health-fill {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gel-gradient);
-  box-shadow: none;
-  transition: width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+.health-panel.is-critical .stat-icon {
+  color: #ff7c6b;
 }
 
 #health-fill[data-critical="true"] {
   background: var(--gel-warn-gradient);
-}
-
-/* Rocket Panel */
-.rocket-panel {
-  min-width: 200px;
-}
-
-#rocket-fill {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--rocket-gradient);
-  box-shadow: none;
-  transition: width 0.1s linear;
-}
-
-#rocket-hint {
-  margin: 12px 0 0;
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(255, 80, 80, 0.6);
-  text-align: right;
 }
 
 .rocket-panel.is-empty {
@@ -180,22 +178,38 @@ canvas {
   filter: grayscale(0.6);
 }
 
-.rocket-panel.is-active {
-  border-color: rgba(255, 80, 80, 0.82);
+.rocket-panel.is-active .stat-icon--boost {
+  color: #ff6666;
+  filter: brightness(1.3);
 }
 
-.rocket-panel.is-active #rocket-fill {
+.rocket-panel.is-active .vbar-fill--rocket {
   filter: brightness(1.2);
 }
 
 /* Level Panel */
 .level-panel {
-  max-width: 280px;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  width: auto;
+  max-width: calc(50% - 12px);
+  padding: 7px 12px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(92, 255, 120, 0.09) 0%, rgba(92, 255, 120, 0.02) 100%),
+    var(--glass);
+  backdrop-filter: blur(28px) saturate(120%);
+  -webkit-backdrop-filter: blur(28px) saturate(120%);
+  pointer-events: none;
+  z-index: 10;
 }
 
 #route-tag {
-  margin: 10px 0 0;
-  font-size: 0.8rem;
+  margin: 4px 0 0;
+  font-size: 0.6rem;
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -342,19 +356,6 @@ h1, h2 {
 
 /* Responsive */
 @media (max-width: 768px) {
-  #overlay {
-    flex-direction: column;
-    inset: 16px 16px auto;
-    gap: 12px;
-  }
-
-  .hud-panel {
-    min-width: 0;
-    width: 100%;
-    padding: 14px 18px 18px;
-    border-radius: 20px;
-  }
-
   .loading-shell,
   .game-over-content {
     padding: 32px 28px 36px;

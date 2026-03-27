@@ -322,9 +322,11 @@ async function init() {
   scene.background = new THREE.Color(SKY_COLOR);
   scene.fog = new THREE.Fog(FOG_COLOR, 12, 120);
 
+  const { width: initW, height: initH } = getPortraitSize();
+
   camera = new THREE.PerspectiveCamera(
     75,
-    window.innerWidth / window.innerHeight,
+    initW / initH,
     0.1,
     1000,
   );
@@ -333,9 +335,12 @@ async function init() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(initW, initH);
   renderer.setClearColor(SKY_COLOR, 1);
-  document.body.appendChild(renderer.domElement);
+  const gameWrap = document.getElementById('game-wrap');
+  gameWrap.style.width = initW + 'px';
+  gameWrap.style.height = initH + 'px';
+  gameWrap.appendChild(renderer.domElement);
 
   bgMusicController = createBackgroundMusicController(soundConfig);
   jumpSoundController = createJumpSoundController(soundConfig);
@@ -1310,10 +1315,20 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+function getPortraitSize() {
+  const h = window.innerHeight;
+  const w = Math.min(window.innerWidth, Math.round(h * 9 / 16));
+  return { width: w, height: h };
+}
+
 function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const { width, height } = getPortraitSize();
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(width, height);
+  const gameWrap = document.getElementById('game-wrap');
+  gameWrap.style.width = width + 'px';
+  gameWrap.style.height = height + 'px';
 }
 
 function mulberry32(seed) {

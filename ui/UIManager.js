@@ -73,7 +73,7 @@ export class UIManager {
     }
 
     if (this.healthFillEl) {
-      this.healthFillEl.style.width = `${percent}%`;
+      this.healthFillEl.style.height = `${percent}%`;
       const isCritical = percent <= 28;
       this.healthFillEl.dataset.critical = isCritical ? "true" : "false";
       if (this.healthPanelEl) {
@@ -93,7 +93,7 @@ export class UIManager {
     }
 
     if (this.rocketFillEl) {
-      this.rocketFillEl.style.width = `${percent}%`;
+      this.rocketFillEl.style.height = `${percent}%`;
     }
 
     if (this.rocketPanelEl) {
