@@ -371,16 +371,20 @@ Use these when validating layout generation or progression through Playwright or
   - optional scripted player abilities, currently dash
 - `scripts/config.lua`
   - exposes movement constants into Lua
+- `configs/world-config.json`
+  - centralized global parameters (gravity, colors, level generation)
+- `configs/player-config.json`
+  - centralized player parameters (movement, drain costs, rockets, camera)
 
 ## Developer Notes For Agents
 
 ### If You Want To Rebalance Difficulty
-Change these first in `core/Engine.js`:
-- `JUMP_GEL_COST`
-- `WALK_GEL_COST`
-- `WALK_STEP_DISTANCE`
-- `MAX_SAFE_LEVEL_DRAIN`
-- the `lerp(...)` endpoints in `generateLevelProfile()`
+Change these first in `configs/player-config.json` (economy) or `configs/world-config.json` (generation):
+- `gelEconomy.jumpCost`
+- `gelEconomy.walkCost`
+- `gelEconomy.walkStepDistance`
+- `campaign.maxSafeLevelDrain`
+- the `lerp(...)` endpoints in `generateLevelProfile()` in `core/Engine.js` are still logic-bound, but the base values are now in `world-config.json`.
 
 Rule of thumb:
 - if players die too often late, reduce `gapBase`, `gapVariance`, or `platformCount`
@@ -405,11 +409,11 @@ The cleanest approach is:
 - Remember that new drains (like Rocket usage) can invalidate the current level-budget math.
 
 ### If You Want To Tune Rockets
-Adjust these in `core/Engine.js`:
-- `ROCKET_THRUST`: Upward force intensity.
-- `ROCKET_DRAIN_RATE`: How fast the fuel meter empties.
-- `ROCKET_REFILL_RATE`: How fast the fuel meter recovers.
-- `ROCKET_GEL_COST`: The health penalty for using rockets.
+Adjust these in `configs/player-config.json`:
+- `rockets.thrust`: Upward force intensity.
+- `rockets.drainRate`: How fast the fuel meter empties.
+- `rockets.refillRate`: How fast the fuel meter recovers.
+- `gelEconomy.rocketGelCost`: The health penalty for using rockets.
 
 ### If You Change Player Scale Rules
 - do not manually resize the rigid body elsewhere
