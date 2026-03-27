@@ -484,6 +484,21 @@ function updateLandingCameraEffect(delta) {
   );
 }
 
+function triggerGameOver(cause) {
+  if (playerState.isGameOver) return;
+  playerState.isGameOver = true;
+  if (playerBody) {
+    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  }
+  
+  if (cause === "fall") {
+    uiManager.showGameOver("RUN COLLAPSED", "The gel dissolved in the void.");
+  } else {
+    uiManager.showGameOver("GEL DEPLETED", "You lost too much of yourself to go on.");
+  }
+}
+
 function drainGel(amount) {
   if (
     playerState.isGameOver ||
@@ -497,10 +512,7 @@ function drainGel(amount) {
   uiManager.updateHealth(playerState.gelMass);
 
   if (playerState.gelMass <= GEL_GAME_OVER_THRESHOLD) {
-    playerState.isGameOver = true;
-    playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    playerBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    uiManager.showGameOver();
+    triggerGameOver("depleted");
   }
 }
 
@@ -1151,7 +1163,7 @@ function updateFrame(delta) {
   }
 
   if (translation.y < -10) {
-    queueLevelRestart();
+    triggerGameOver("fall");
   }
 
   player.position.copy(translation);
@@ -1584,6 +1596,10 @@ function setupTestingHooks() {
   window.setLevelForDebug = (levelNumber) => {
     const nextLevel = clamp(Math.round(levelNumber), 1, LEVEL_COUNT);
     buildLevel(nextLevel);
+  };
+
+  window.retryLevel = () => {
+    buildLevel(levelState.currentLevel);
   };
 }
 

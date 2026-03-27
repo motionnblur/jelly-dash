@@ -1,9 +1,9 @@
 :root {
   --ink: #0d1526;
-  --glass: rgba(255, 255, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.22);
-  --glass-glow: rgba(255, 255, 255, 0.12);
-  --panel-shadow: rgba(0, 0, 0, 0.22);
+  --glass: rgba(0, 40, 20, 0.15); /* Darker green glass */
+  --glass-border: rgba(92, 255, 120, 0.25);
+  --glass-glow: rgba(92, 255, 120, 0.1);
+  --panel-shadow: rgba(0, 0, 0, 0.3);
   
   --gel: #5cff78;
   --gel-gradient: linear-gradient(135deg, #4fe46b 0%, #87ff83 55%, #dfff74 100%);
@@ -16,13 +16,18 @@
   
   --route-breather: #258bff;
   --route-breather-glow: rgba(37, 139, 255, 0.3);
+
+  /* New Green Palette */
+  --font-main: #5cff78;
+  --font-muted: rgba(92, 255, 120, 0.5);
+  --font-bright: #a0ffb3;
 }
 
 body {
   margin: 0;
   overflow: hidden;
-  background: #05080f;
-  color: #fff;
+  background: #040806; /* Very dark green-black */
+  color: var(--font-main);
   font-family: "Outfit", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -50,13 +55,13 @@ canvas {
   border: 1px solid var(--glass-border);
   border-radius: 24px;
   background: 
-    linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%),
+    linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, rgba(92, 255, 120, 0.02) 100%),
     var(--glass);
   box-shadow: 
-    0 8px 32px 0 rgba(0, 0, 0, 0.37),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+    0 8px 32px 0 rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(92, 255, 120, 0.05);
+  backdrop-filter: blur(28px) saturate(120%);
+  -webkit-backdrop-filter: blur(28px) saturate(120%);
   overflow: hidden;
 }
 
@@ -65,7 +70,7 @@ canvas {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 45%);
+  background: linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, transparent 45%);
   pointer-events: none;
 }
 
@@ -75,7 +80,7 @@ canvas {
   font-weight: 800;
   letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--font-muted);
 }
 
 .health-shell {
@@ -96,22 +101,22 @@ canvas {
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.22em;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--font-muted);
 }
 
 #health-value,
 #level-value {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #fff;
-  text-shadow: 0 0 16px rgba(255, 255, 255, 0.2);
+  color: var(--font-bright);
+  text-shadow: 0 0 16px rgba(92, 255, 120, 0.3);
 }
 
 .health-unit {
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--font-muted);
   margin-left: 3px;
 }
 
@@ -133,8 +138,8 @@ canvas {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.25);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 #health-fill {
@@ -171,7 +176,7 @@ canvas {
   font-weight: 800;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(255, 80, 80, 0.5);
+  color: rgba(255, 80, 80, 0.6);
   text-align: right;
 }
 
@@ -200,8 +205,8 @@ canvas {
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: var(--font-main);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 #route-tag[data-respite="true"] {
@@ -219,14 +224,14 @@ canvas {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  background: rgba(4, 7, 13, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(2, 6, 4, 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 #loading {
   display: flex;
-  background: #05080f;
+  background: #040806;
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -237,11 +242,11 @@ canvas {
   border-radius: 32px;
   border: 1px solid var(--glass-border);
   background: 
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 100%),
-    rgba(255, 255, 255, 0.04);
+    linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, rgba(92, 255, 120, 0.01) 100%),
+    rgba(10, 20, 15, 0.2);
   box-shadow: 
-    0 30px 90px -20px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 30px 90px -20px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(92, 255, 120, 0.04);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
   text-align: left;
@@ -254,7 +259,7 @@ canvas {
   font-weight: 800;
   letter-spacing: 0.4em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--font-muted);
 }
 
 h1, h2 {
@@ -263,7 +268,8 @@ h1, h2 {
   line-height: 0.9;
   letter-spacing: -0.05em;
   font-weight: 700;
-  color: #fff;
+  color: var(--font-bright);
+  text-shadow: 0 0 40px rgba(92, 255, 120, 0.15);
 }
 
 .loading-copy,
@@ -273,21 +279,22 @@ h1, h2 {
   max-width: 32rem;
   font-size: 1.05rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--font-main);
+  opacity: 0.85;
   font-weight: 400;
 }
 
 /* Game Complete Special Styling */
 #game-complete .game-over-content {
-  border-color: rgba(255, 215, 0, 0.3);
+  border-color: rgba(255, 215, 0, 0.4);
   background: 
     linear-gradient(135deg, rgba(255, 230, 100, 0.1) 0%, rgba(255, 230, 100, 0.02) 100%),
-    rgba(255, 255, 255, 0.04);
+    rgba(255, 255, 255, 0.02);
 }
 
 #game-complete h2 {
   color: #ffea70;
-  text-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+  text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
 }
 
 /* Buttons */
@@ -295,10 +302,10 @@ h1, h2 {
 #complete-retry-btn {
   margin-top: 32px;
   padding: 16px 42px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(92, 255, 120, 0.4);
   border-radius: 999px;
-  background: #fff;
-  color: #000;
+  background: var(--font-main);
+  color: #040806;
   font: inherit;
   font-weight: 800;
   font-size: 0.9rem;
@@ -306,7 +313,7 @@ h1, h2 {
   cursor: pointer;
   pointer-events: all;
   transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
 }
 
 #complete-retry-btn {
@@ -318,7 +325,7 @@ h1, h2 {
 #retry-btn:hover,
 #complete-retry-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 15px 30px rgba(92, 255, 120, 0.2);
   filter: brightness(1.1);
 }
 
@@ -330,11 +337,11 @@ h1, h2 {
 /* Animations */
 @keyframes glassPulseRed {
   0%, 100% {
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
   }
   50% {
     box-shadow: 0 8px 40px 0 rgba(255, 95, 87, 0.25);
-    background: rgba(255, 95, 87, 0.08);
+    background: rgba(255, 95, 87, 0.12);
   }
 }
 

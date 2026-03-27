@@ -11,6 +11,8 @@ export class UIManager {
     this.routeTagEl = document.getElementById("route-tag");
     this.loadingEl = document.getElementById("loading");
     this.gameOverEl = document.getElementById("game-over");
+    this.gameOverTitleEl = document.getElementById("game-over-title");
+    this.gameOverMsgEl = document.getElementById("game-over-msg");
     this.gameCompleteEl = document.getElementById("game-complete");
     this.retryBtn = document.getElementById("retry-btn");
     this.completeRetryBtn = document.getElementById("complete-retry-btn");
@@ -21,7 +23,11 @@ export class UIManager {
 
     if (this.retryBtn) {
       this.retryBtn.addEventListener("click", () => {
-        window.location.reload();
+        if (window.retryLevel) {
+          window.retryLevel();
+        } else {
+          window.location.reload();
+        }
       });
     }
 
@@ -85,7 +91,13 @@ export class UIManager {
     }
   }
 
-  showGameOver() {
+  showGameOver(title, message) {
+    if (this.gameOverTitleEl && title) {
+      this.gameOverTitleEl.innerText = title;
+    }
+    if (this.gameOverMsgEl && message) {
+      this.gameOverMsgEl.innerText = message;
+    }
     if (this.gameOverEl) {
       this.gameOverEl.style.display = "flex";
     }
