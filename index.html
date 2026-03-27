@@ -224,6 +224,48 @@
         ">GO</button>
     </div>
 
+    <!-- Level Editor FAB -->
+    <button id="editor-fab" title="Level Editor" aria-label="Open level editor">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="11.5" y="1.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="1.5" y="11.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="11.5" y="11.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+    </button>
+
+    <!-- Level Editor Panel -->
+    <div id="level-editor" class="editor-panel">
+      <div class="editor-hdr">
+        <span class="editor-title">LEVEL EDITOR</span>
+        <button id="editor-close-btn" class="editor-close-btn">✕</button>
+      </div>
+
+      <div class="editor-level-nav">
+        <button id="editor-prev-level" class="ed-nav-btn">‹</button>
+        <span id="editor-level-label">1 / 50</span>
+        <button id="editor-next-level" class="ed-nav-btn">›</button>
+      </div>
+
+      <div class="editor-subhdr">PLATFORMS</div>
+      <div id="editor-platform-list" class="editor-platform-list"></div>
+
+      <div class="editor-list-actions">
+        <button id="editor-add-btn" class="ed-action-btn">+ ADD</button>
+        <button id="editor-delete-btn" class="ed-action-btn ed-action-btn--del">✕ DEL</button>
+        <button id="editor-undo-btn" class="ed-action-btn ed-action-btn--undo" title="Undo (Ctrl+Z)">↩ UNDO</button>
+      </div>
+
+      <div id="editor-properties" class="editor-properties">
+        <div class="ed-no-sel">Click a platform to edit</div>
+      </div>
+
+      <div class="editor-footer">
+        <button id="editor-export-btn" class="ed-action-btn ed-action-btn--full">EXPORT JSON</button>
+        <div class="editor-hint">LMB drag: orbit · RMB drag: pan · Scroll: zoom · Ctrl+Z: undo</div>
+      </div>
+    </div>
+
     <div id="cheat-console" style="display: none;">
         <div class="console-shell">
             <p class="console-kicker">System Terminal</p>

@@ -1,0 +1,662 @@
+import * as THREE from "three";
+
+const SHAPE_DEFAULT_ROTY = { hex: Math.PI / 6, square: Math.PI / 4, triangle: Math.PI / 2 };
+
+const AXIS_COLORS  = { x: 0xff2222, y: 0x22ff44, z: 0x2266ff };
+const AXIS_HOVER   = 0xffdd00;
+const AXIS_VECTORS = {
+  x: new THREE.Vector3(1, 0, 0),
+  y: new THREE.Vector3(0, 1, 0),
+  z: new THREE.Vector3(0, 0, 1),
+};
+const MAX_HISTORY = 60;
+
+function freshPlatformDef(layout) {
+  const nonFinals = layout.filter((d) => !d.isFinal);
+  const last = nonFinals[nonFinals.length - 1];
+  return {
+    x: last ? last.x : 0,
+    y: last ? last.y + 3.5 : 2,
+    z: 0,
+    w: 3.2, h: 0.5, d: 3.2,
+    color: layout[0]?.color ?? 0x7401ff,
+    isFinal: false,
+    shape: "hex",
+    rotationY: Math.PI / 6,
+    isDestroyable: false,
+    hitsToBreak: 2,
+    bobPhase: 0,
+    motionAmplitude: 0, motionSpeed: 1.0,
+    swingAmplitude: 0,  swingSpeed: 1.0,
+  };
+}
+
+// ─── Gizmo builder ────────────────────────────────────────────────────────────
+
+function buildGizmo(scene) {
+  const group = new THREE.Group();
+  group.visible = false;
+  group.renderOrder = 999;
+  scene.add(group);
+
+  const mats   = {};
+  const meshes = [];
+
+  ["x", "y", "z"].forEach((axis) => {
+    const color = AXIS_COLORS[axis];
+    const mat   = new THREE.MeshBasicMaterial({ color, depthTest: false, toneMapped: false });
+    mats[axis]  = mat;
+
+    const axisGroup = new THREE.Group();
+    axisGroup.renderOrder = 999;
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.1, 8), mat);
+    shaft.position.y = 0.55;
+    shaft.renderOrder = 999;
+    shaft.userData.gizmoAxis = axis;
+    axisGroup.add(shaft);
+    meshes.push(shaft);
+
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.28, 8), mat);
+    tip.position.y = 1.24;
+    tip.renderOrder = 999;
+    tip.userData.gizmoAxis = axis;
+    axisGroup.add(tip);
+    meshes.push(tip);
+
+    if (axis === "x") axisGroup.rotation.z = -Math.PI / 2;
+    if (axis === "z") axisGroup.rotation.x =  Math.PI / 2;
+
+    group.add(axisGroup);
+  });
+
+  return { group, mats, meshes };
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+export function initLevelEditor({
+  scene,
+  camera,
+  renderer,
+  platforms,
+  levelState,
+  gameplayState,
+  clock,
+  rebuildCurrentLevelPlatforms,
+  buildLevel,
+}) {
+  let isOpen        = false;
+  let selectedIndex = -1;
+
+  // ── History ────────────────────────────────────────────────────────────────
+  const history = [];
+
+  function pushHistory() {
+    const layout = levelState.currentProfile?.layout;
+    if (!layout) return;
+    history.push(JSON.parse(JSON.stringify(layout)));
+    if (history.length > MAX_HISTORY) history.shift();
+  }
+
+  function undo() {
+    if (history.length === 0) return;
+    const snapshot = history.pop();
+    if (!levelState.currentProfile) return;
+
+    // Restore layout in-place so the object reference stays valid
+    levelState.currentProfile.layout.length = 0;
+    for (const d of snapshot) levelState.currentProfile.layout.push(d);
+
+    // Clamp selection to new length
+    if (selectedIndex >= levelState.currentProfile.layout.length) {
+      clearHighlight();
+      selectedIndex = -1;
+      gizmo.visible = false;
+    }
+
+    // Rebuild platforms (bypass rebuild() to avoid side-effects)
+    rebuildCurrentLevelPlatforms();
+
+    // Re-apply selection highlight if still valid
+    if (selectedIndex >= 0 && platforms[selectedIndex]) {
+      const mat = platforms[selectedIndex].mesh.material;
+      mat._edOrig  = mat.emissive.getHex();
+      mat._edOrigI = mat.emissiveIntensity;
+      mat.emissive.setHex(0x00e5ff);
+      mat.emissiveIntensity = 1.0;
+    }
+
+    renderPlatformList();
+    renderProperties();
+    placeGizmo();
+  }
+
+  // ── Camera / orbit ─────────────────────────────────────────────────────────
+  const savedCam = { pos: new THREE.Vector3(), quat: new THREE.Quaternion() };
+  const orbit = {
+    dragging: false, panning: false, moved: false,
+    lastX: 0, lastY: 0,
+    theta: 0, phi: 0.42, radius: 22,
+    target: new THREE.Vector3(0, 5, 0),
+  };
+
+  // ── Gizmo drag ─────────────────────────────────────────────────────────────
+  const drag = {
+    active: false, axis: null,
+    plane: new THREE.Plane(),
+    planeHit: new THREE.Vector3(),
+    startPos: new THREE.Vector3(),
+  };
+  let hoveredAxis = null;
+
+  const raycaster = new THREE.Raycaster();
+  const mouse     = new THREE.Vector2();
+
+  // ── Build gizmo ────────────────────────────────────────────────────────────
+  const { group: gizmo, mats: gizmoMats, meshes: gizmoMeshes } = buildGizmo(scene);
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const fab            = document.getElementById("editor-fab");
+  const panel          = document.getElementById("level-editor");
+  const closeBtn       = document.getElementById("editor-close-btn");
+  const platformListEl = document.getElementById("editor-platform-list");
+  const propertiesEl   = document.getElementById("editor-properties");
+  const addBtn         = document.getElementById("editor-add-btn");
+  const deleteBtn      = document.getElementById("editor-delete-btn");
+  const exportBtn      = document.getElementById("editor-export-btn");
+  const undoBtn        = document.getElementById("editor-undo-btn");
+  const prevLvlBtn     = document.getElementById("editor-prev-level");
+  const nextLvlBtn     = document.getElementById("editor-next-level");
+  const levelLabelEl   = document.getElementById("editor-level-label");
+
+  // ── Open / Close ───────────────────────────────────────────────────────────
+  function openEditor() {
+    isOpen = true;
+    gameplayState.isEditorOpen = true;
+    gameplayState.isPaused     = true;
+    clock.getDelta();
+
+    panel.classList.add("editor-panel--open");
+    fab.classList.add("editor-fab--active");
+
+    savedCam.pos.copy(camera.position);
+    savedCam.quat.copy(camera.quaternion);
+
+    if (platforms.length > 0) {
+      let sumY = 0;
+      for (const p of platforms) sumY += p.mesh.position.y;
+      orbit.target.set(0, sumY / platforms.length + 1, 0);
+    }
+    const dx = camera.position.x - orbit.target.x;
+    const dy = camera.position.y - orbit.target.y;
+    const dz = camera.position.z - orbit.target.z;
+    orbit.radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    orbit.theta  = Math.atan2(dx, dz);
+    orbit.phi    = Math.asin(Math.max(-1, Math.min(1, dy / orbit.radius)));
+
+    refreshLevelLabel();
+    renderPlatformList();
+    renderProperties();
+    syncOrbitCamera();
+
+    renderer.domElement.addEventListener("mousedown",   onMouseDown);
+    renderer.domElement.addEventListener("click",       onCanvasClick);
+    window.addEventListener("mousemove",               onMouseMove);
+    window.addEventListener("mouseup",                 onMouseUp);
+    renderer.domElement.addEventListener("wheel",       onWheel, { passive: false });
+    renderer.domElement.addEventListener("contextmenu", suppressCtx);
+    window.addEventListener("keydown",                 onEditorKeyDown);
+  }
+
+  function closeEditor() {
+    isOpen = false;
+    gameplayState.isEditorOpen = false;
+    gameplayState.isPaused     = false;
+    clock.getDelta();
+
+    panel.classList.remove("editor-panel--open");
+    fab.classList.remove("editor-fab--active");
+
+    clearHighlight();
+    selectedIndex = -1;
+    gizmo.visible = false;
+    history.length = 0;
+
+    camera.position.copy(savedCam.pos);
+    camera.quaternion.copy(savedCam.quat);
+
+    renderer.domElement.removeEventListener("mousedown",   onMouseDown);
+    renderer.domElement.removeEventListener("click",       onCanvasClick);
+    window.removeEventListener("mousemove",               onMouseMove);
+    window.removeEventListener("mouseup",                 onMouseUp);
+    renderer.domElement.removeEventListener("wheel",       onWheel);
+    renderer.domElement.removeEventListener("contextmenu", suppressCtx);
+    window.removeEventListener("keydown",                 onEditorKeyDown);
+  }
+
+  const suppressCtx = (e) => e.preventDefault();
+  fab.addEventListener("click",   () => (isOpen ? closeEditor() : openEditor()));
+  closeBtn.addEventListener("click", closeEditor);
+
+  function onEditorKeyDown(e) {
+    // Don't intercept browser undo inside text inputs
+    if (document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA") return;
+    if (e.ctrlKey && e.key === "z") {
+      e.preventDefault();
+      undo();
+    }
+  }
+
+  // ── Level navigation ───────────────────────────────────────────────────────
+  function refreshLevelLabel() {
+    if (levelLabelEl)
+      levelLabelEl.textContent = `${levelState.currentLevel} / ${levelState.totalLevels}`;
+  }
+
+  function afterLevelChange() {
+    history.length = 0; // history is per-level
+    refreshLevelLabel();
+    renderPlatformList();
+    renderProperties();
+    if (platforms.length > 0) {
+      let sumY = 0;
+      for (const p of platforms) sumY += p.mesh.position.y;
+      orbit.target.set(0, sumY / platforms.length + 1, 0);
+      syncOrbitCamera();
+    }
+  }
+
+  prevLvlBtn.addEventListener("click", () => {
+    if (levelState.currentLevel <= 1) return;
+    resetSelection();
+    buildLevel(levelState.currentLevel - 1);
+    afterLevelChange();
+  });
+
+  nextLvlBtn.addEventListener("click", () => {
+    if (levelState.currentLevel >= levelState.totalLevels) return;
+    resetSelection();
+    buildLevel(levelState.currentLevel + 1);
+    afterLevelChange();
+  });
+
+  // ── Platform list ──────────────────────────────────────────────────────────
+  function renderPlatformList() {
+    const layout = levelState.currentProfile?.layout ?? [];
+    platformListEl.innerHTML = "";
+    layout.forEach((def, i) => {
+      const el   = document.createElement("div");
+      el.className = "ed-item" + (i === selectedIndex ? " ed-item--sel" : "");
+      const icon = def.isFinal ? "★"
+        : def.shape === "triangle" ? "▲"
+        : def.shape === "square"   ? "■" : "⬡";
+      const name = def.isFinal ? "FINAL HEX" : `Platform ${i + 1}`;
+      el.innerHTML = `
+        <span class="ed-item-icon">${icon}</span>
+        <span class="ed-item-name">${name}</span>
+        <span class="ed-item-pos">(${def.x.toFixed(1)}, ${def.y.toFixed(1)})</span>`;
+      el.addEventListener("click", () => selectPlatform(i));
+      platformListEl.appendChild(el);
+    });
+  }
+
+  // ── Selection + gizmo ─────────────────────────────────────────────────────
+  function clearHighlight() {
+    if (selectedIndex >= 0 && platforms[selectedIndex]) {
+      const mat = platforms[selectedIndex].mesh.material;
+      if (mat._edOrig !== undefined) {
+        mat.emissive.setHex(mat._edOrig);
+        mat.emissiveIntensity = mat._edOrigI;
+        delete mat._edOrig;
+        delete mat._edOrigI;
+      }
+    }
+  }
+
+  function resetSelection() {
+    clearHighlight();
+    selectedIndex = -1;
+    gizmo.visible = false;
+  }
+
+  function selectPlatform(index) {
+    clearHighlight();
+    selectedIndex = index;
+    if (platforms[index]) {
+      const mat = platforms[index].mesh.material;
+      mat._edOrig  = mat.emissive.getHex();
+      mat._edOrigI = mat.emissiveIntensity;
+      mat.emissive.setHex(0x00e5ff);
+      mat.emissiveIntensity = 1.0;
+    }
+    renderPlatformList();
+    renderProperties();
+    placeGizmo();
+  }
+
+  function placeGizmo() {
+    if (selectedIndex < 0 || !platforms[selectedIndex]) { gizmo.visible = false; return; }
+    gizmo.position.copy(platforms[selectedIndex].mesh.position);
+    gizmo.visible = true;
+    scaleGizmo();
+  }
+
+  function scaleGizmo() {
+    if (!gizmo.visible) return;
+    gizmo.scale.setScalar(camera.position.distanceTo(gizmo.position) * 0.13);
+  }
+
+  // ── Properties panel ───────────────────────────────────────────────────────
+  function renderProperties() {
+    const def = selectedIndex >= 0 ? levelState.currentProfile?.layout[selectedIndex] : null;
+    if (!def) {
+      propertiesEl.innerHTML = '<div class="ed-no-sel">Click a platform to edit</div>';
+      return;
+    }
+    const colorHex = "#" + def.color.toString(16).padStart(6, "0");
+    const rotDeg   = (((def.rotationY ?? 0) * 180) / Math.PI).toFixed(1);
+    propertiesEl.innerHTML = `
+      <div class="ed-section">POSITION</div>
+      <div class="ed-row"><label class="ed-lbl ed-lbl--x">X</label><input class="ed-num" id="p-x" type="number" value="${def.x.toFixed(2)}" step="0.25"></div>
+      <div class="ed-row"><label class="ed-lbl ed-lbl--y">Y</label><input class="ed-num" id="p-y" type="number" value="${def.y.toFixed(2)}" step="0.25"></div>
+      <div class="ed-row"><label class="ed-lbl ed-lbl--z">Z</label><input class="ed-num" id="p-z" type="number" value="${def.z.toFixed(2)}" step="0.25"></div>
+
+      <div class="ed-section">SIZE</div>
+      <div class="ed-row"><label>W / D</label><input class="ed-num" id="p-w" type="number" value="${def.w.toFixed(2)}" step="0.1" min="0.5"></div>
+      <div class="ed-row"><label>Height</label><input class="ed-num" id="p-h" type="number" value="${def.h.toFixed(2)}" step="0.05" min="0.1"></div>
+
+      <div class="ed-section">APPEARANCE</div>
+      <div class="ed-row"><label>Shape</label>
+        <select class="ed-sel" id="p-shape">
+          <option value="hex"      ${def.shape==="hex"      ?"selected":""}>Hexagon</option>
+          <option value="square"   ${def.shape==="square"   ?"selected":""}>Square</option>
+          <option value="triangle" ${def.shape==="triangle" ?"selected":""}>Triangle</option>
+        </select></div>
+      <div class="ed-row"><label>Rot °</label><input class="ed-num" id="p-rot" type="number" value="${rotDeg}" step="5"></div>
+      <div class="ed-row"><label>Color</label><input class="ed-color" id="p-color" type="color" value="${colorHex}"></div>
+
+      <div class="ed-section">VERTICAL MOTION</div>
+      <div class="ed-row"><label>Amplitude</label><input class="ed-num" id="p-mamp" type="number" value="${(def.motionAmplitude??0).toFixed(2)}" step="0.1" min="0"></div>
+      <div class="ed-row"><label>Speed</label><input class="ed-num" id="p-mspd" type="number" value="${(def.motionSpeed??1).toFixed(2)}" step="0.1" min="0.1"></div>
+
+      <div class="ed-section">HORIZONTAL SWING</div>
+      <div class="ed-row"><label>Amplitude</label><input class="ed-num" id="p-samp" type="number" value="${(def.swingAmplitude??0).toFixed(2)}" step="0.1" min="0"></div>
+      <div class="ed-row"><label>Speed</label><input class="ed-num" id="p-sspd" type="number" value="${(def.swingSpeed??1).toFixed(2)}" step="0.1" min="0.1"></div>
+
+      <div class="ed-section">FLAGS</div>
+      <div class="ed-row ed-row--check"><label>Final Platform</label><input class="ed-chk" id="p-final" type="checkbox" ${def.isFinal?"checked":""}></div>
+      <div class="ed-row ed-row--check"><label>Destroyable</label><input class="ed-chk" id="p-destroy" type="checkbox" ${def.isDestroyable?"checked":""}></div>
+      <div class="ed-row"><label>Hits to break</label><input class="ed-num" id="p-hits" type="number" value="${def.hitsToBreak??2}" step="1" min="1"></div>`;
+    bindPropertyEvents(def);
+  }
+
+  function bindPropertyEvents(def) {
+    // n: numeric input — pushes history then applies change + rebuild
+    function n(id, key, parse = parseFloat, extra) {
+      document.getElementById(id)?.addEventListener("change", (e) => {
+        pushHistory();
+        def[key] = parse(e.target.value);
+        if (extra) extra(def);
+        rebuild();
+      });
+    }
+    // c: checkbox
+    function c(id, key) {
+      document.getElementById(id)?.addEventListener("change", (e) => {
+        pushHistory();
+        def[key] = e.target.checked;
+        rebuild();
+      });
+    }
+
+    n("p-x", "x"); n("p-y", "y"); n("p-z", "z");
+    n("p-w", "w", parseFloat, (d) => { d.d = d.w; });
+    n("p-h", "h");
+    n("p-mamp", "motionAmplitude"); n("p-mspd", "motionSpeed");
+    n("p-samp", "swingAmplitude");  n("p-sspd", "swingSpeed");
+    n("p-hits", "hitsToBreak", parseInt);
+    c("p-final", "isFinal"); c("p-destroy", "isDestroyable");
+
+    document.getElementById("p-rot")?.addEventListener("change", (e) => {
+      pushHistory();
+      def.rotationY = (parseFloat(e.target.value) * Math.PI) / 180;
+      rebuild();
+    });
+    document.getElementById("p-color")?.addEventListener("input", (e) => {
+      pushHistory();
+      def.color = parseInt(e.target.value.slice(1), 16);
+      rebuild();
+    });
+    document.getElementById("p-shape")?.addEventListener("change", (e) => {
+      pushHistory();
+      def.shape     = e.target.value;
+      def.rotationY = SHAPE_DEFAULT_ROTY[def.shape] ?? 0;
+      const rotEl   = document.getElementById("p-rot");
+      if (rotEl) rotEl.value = ((def.rotationY * 180) / Math.PI).toFixed(1);
+      rebuild();
+    });
+  }
+
+  // Rebuild without pushing history — callers are responsible for pushing beforehand
+  function rebuild() {
+    const prev = selectedIndex;
+    rebuildCurrentLevelPlatforms();
+    if (prev >= 0 && platforms[prev]) {
+      selectedIndex = prev;
+      const mat = platforms[prev].mesh.material;
+      mat._edOrig  = mat.emissive.getHex();
+      mat._edOrigI = mat.emissiveIntensity;
+      mat.emissive.setHex(0x00e5ff);
+      mat.emissiveIntensity = 1.0;
+    }
+    renderPlatformList();
+    placeGizmo();
+  }
+
+  // ── Add / Delete / Undo / Export ───────────────────────────────────────────
+  addBtn.addEventListener("click", () => {
+    if (!levelState.currentProfile) return;
+    pushHistory();
+    const layout   = levelState.currentProfile.layout;
+    const newDef   = freshPlatformDef(layout);
+    const finalIdx = layout.findIndex((d) => d.isFinal);
+    if (finalIdx >= 0) layout.splice(finalIdx, 0, newDef);
+    else layout.push(newDef);
+    const newIdx = finalIdx >= 0 ? finalIdx : layout.length - 1;
+    rebuildCurrentLevelPlatforms();
+    selectPlatform(newIdx);
+    renderProperties();
+  });
+
+  deleteBtn.addEventListener("click", () => {
+    if (selectedIndex < 0 || !levelState.currentProfile) return;
+    const layout = levelState.currentProfile.layout;
+    if (layout.length <= 1) return;
+    pushHistory();
+    clearHighlight();
+    layout.splice(selectedIndex, 1);
+    selectedIndex = -1;
+    gizmo.visible = false;
+    rebuildCurrentLevelPlatforms();
+    renderPlatformList();
+    renderProperties();
+  });
+
+  undoBtn?.addEventListener("click", undo);
+
+  exportBtn.addEventListener("click", () => {
+    if (!levelState.currentProfile) return;
+    const json = JSON.stringify(levelState.currentProfile.layout, null, 2);
+    navigator.clipboard.writeText(json).then(() => {
+      exportBtn.textContent = "✓ COPIED!";
+      setTimeout(() => { exportBtn.textContent = "EXPORT JSON"; }, 2000);
+    }).catch(() => {
+      const a = document.createElement("a");
+      a.href = "data:application/json," + encodeURIComponent(json);
+      a.download = `level-${levelState.currentLevel}.json`;
+      a.click();
+    });
+  });
+
+  // ── Gizmo drag helpers ─────────────────────────────────────────────────────
+  function makeDragPlane(axis) {
+    const axisVec = AXIS_VECTORS[axis];
+    const origin  = gizmo.position.clone();
+    const camDir  = camera.position.clone().sub(origin).normalize();
+    const proj    = camDir.clone().sub(axisVec.clone().multiplyScalar(camDir.dot(axisVec)));
+    const normal  = proj.length() > 0.001 ? proj.normalize()
+      : new THREE.Vector3(axisVec.x === 0 ? 1 : 0, axisVec.y === 0 ? 1 : 0, 0);
+    return new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
+  }
+
+  function eventToMouse(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  }
+
+  function rayPlaneHit(plane) {
+    const hit = new THREE.Vector3();
+    return raycaster.ray.intersectPlane(plane, hit) ? hit : null;
+  }
+
+  // ── Mouse events ───────────────────────────────────────────────────────────
+  function onMouseDown(e) {
+    orbit.moved = false;
+    orbit.lastX = e.clientX;
+    orbit.lastY = e.clientY;
+
+    if (e.button === 0) {
+      eventToMouse(e);
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(gizmoMeshes, false);
+      if (hits.length > 0) {
+        pushHistory(); // snapshot before drag starts
+        const axis  = hits[0].object.userData.gizmoAxis;
+        drag.active = true;
+        drag.axis   = axis;
+        drag.plane  = makeDragPlane(axis);
+        const hit   = rayPlaneHit(drag.plane);
+        if (hit) drag.planeHit.copy(hit);
+        const def = levelState.currentProfile?.layout[selectedIndex];
+        if (def) drag.startPos.set(def.x, def.y, def.z);
+        return;
+      }
+      orbit.dragging = true;
+    }
+    if (e.button === 2) { orbit.panning = true; e.preventDefault(); }
+  }
+
+  function onMouseMove(e) {
+    const dx = e.clientX - orbit.lastX;
+    const dy = e.clientY - orbit.lastY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) orbit.moved = true;
+    orbit.lastX = e.clientX;
+    orbit.lastY = e.clientY;
+
+    if (drag.active) {
+      eventToMouse(e);
+      raycaster.setFromCamera(mouse, camera);
+      const hit = rayPlaneHit(drag.plane);
+      if (hit) {
+        const movement = hit.clone().sub(drag.planeHit).dot(AXIS_VECTORS[drag.axis]);
+        const def      = levelState.currentProfile?.layout[selectedIndex];
+        if (def) {
+          def[drag.axis] = drag.startPos[drag.axis] + movement;
+          const platform = platforms[selectedIndex];
+          if (platform) {
+            platform.mesh.position[drag.axis] = def[drag.axis];
+            platform.body.setNextKinematicTranslation(platform.mesh.position);
+            if (drag.axis === "x") { platform.originalX = def.x; platform.currentX = def.x; }
+            if (drag.axis === "y") { platform.originalY = def.y; platform.currentY = def.y; }
+          }
+          gizmo.position[drag.axis] = def[drag.axis];
+          const el = document.getElementById(`p-${drag.axis}`);
+          if (el) el.value = def[drag.axis].toFixed(2);
+          const listItems = platformListEl.querySelectorAll(".ed-item-pos");
+          if (listItems[selectedIndex])
+            listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
+        }
+      }
+      return;
+    }
+
+    if (orbit.dragging) {
+      orbit.theta -= dx * 0.007;
+      orbit.phi   = Math.max(-1.4, Math.min(1.4, orbit.phi + dy * 0.007));
+      syncOrbitCamera(); return;
+    }
+    if (orbit.panning) {
+      const s = orbit.radius * 0.002;
+      orbit.target.x -= dx * s;
+      orbit.target.y -= dy * s;
+      syncOrbitCamera(); return;
+    }
+
+    // Hover highlight
+    if (gizmo.visible) {
+      eventToMouse(e);
+      raycaster.setFromCamera(mouse, camera);
+      const hits       = raycaster.intersectObjects(gizmoMeshes, false);
+      const newHovered = hits.length > 0 ? hits[0].object.userData.gizmoAxis : null;
+      if (newHovered !== hoveredAxis) {
+        hoveredAxis = newHovered;
+        ["x", "y", "z"].forEach((a) => {
+          gizmoMats[a].color.setHex(hoveredAxis === a ? AXIS_HOVER : AXIS_COLORS[a]);
+        });
+      }
+    }
+  }
+
+  function onMouseUp() {
+    orbit.dragging = false;
+    orbit.panning  = false;
+    if (drag.active) {
+      drag.active = false;
+      drag.axis   = null;
+      rebuild(); // history was already pushed at drag start
+    }
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    orbit.radius = Math.max(3, Math.min(80, orbit.radius + e.deltaY * 0.05));
+    syncOrbitCamera();
+  }
+
+  function onCanvasClick(e) {
+    if (orbit.moved) return;
+    eventToMouse(e);
+    raycaster.setFromCamera(mouse, camera);
+    if (gizmo.visible && raycaster.intersectObjects(gizmoMeshes, false).length > 0) return;
+
+    const meshes = platforms.map((p) => p.mesh);
+    const hits   = raycaster.intersectObjects(meshes, true);
+    if (hits.length > 0) {
+      let obj = hits[0].object;
+      while (obj && !meshes.includes(obj)) obj = obj.parent;
+      const idx = meshes.indexOf(obj);
+      if (idx >= 0) { selectPlatform(idx); return; }
+    }
+    resetSelection();
+    renderPlatformList();
+    renderProperties();
+  }
+
+  // ── Orbit camera ───────────────────────────────────────────────────────────
+  function syncOrbitCamera() {
+    const { theta, phi, radius, target } = orbit;
+    camera.position.set(
+      target.x + radius * Math.cos(phi) * Math.sin(theta),
+      target.y + radius * Math.sin(phi),
+      target.z + radius * Math.cos(phi) * Math.cos(theta),
+    );
+    camera.lookAt(target);
+    scaleGizmo();
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+  return { isOpen: () => isOpen, tick: syncOrbitCamera };
+}

@@ -367,6 +367,8 @@ The generator does **not** currently add moving hazards, enemies, or fake branch
 | ESC | Open/close ESC menu (or go back from Options) |
 | F1 | Toggle developer cheat terminal |
 
+> **Note:** When `gameplayState.isEditorOpen` is `true`, the `onKeyDown` handler returns immediately after the `F1` check. P and ESC have no effect while the level editor is open.
+
 ## Cheat System (F1 Terminal)
 The game includes a hidden system terminal for developers and advanced users.
 
@@ -408,14 +410,38 @@ Use these when validating layout generation or progression through Playwright or
   - ESC menu overlay (`#esc-menu`) — RESTART / OPTIONS / RESUME
   - options menu overlay (`#options-menu`) — master toggle, BG music, and per-FX controls
   - campaign-complete overlay
+  - level editor FAB button (`#editor-fab`) — grid icon at bottom-right of viewport
+  - level editor panel (`#level-editor`) — slides in from the right edge of the viewport; contains platform list, `#editor-add-btn`, `#editor-delete-btn`, `#editor-undo-btn`, `#editor-export-btn`
 - `main.js`
   - entry point
 - `core/Engine.js`
   - rendering, physics, input, gel logic, generator, progression, test hooks
-  - pause state (`gameplayState.isPaused`, `isEscMenuOpen`, `isOptionsOpen`)
+  - pause state (`gameplayState.isPaused`, `isEscMenuOpen`, `isOptionsOpen`, `isEditorOpen`)
   - audio options state (`audioOptions`) and `applyAudioChannel` / `applyAllAudio`
   - menu helpers: `openEscMenu`, `closeEscMenu`, `openOptions`, `closeOptions`
   - options UI wiring: `initOptionsUI`
+  - `rebuildCurrentLevelPlatforms()` — clears and recreates all platforms from `levelState.currentProfile.layout` without resetting the player; used by the level editor
+  - `levelEditorRef` — holds the return value of `initLevelEditor`; its `tick()` is called every frame when the editor is open to keep the orbital camera updated
+- `editor/LevelEditor.js`
+  - in-game level editor; initialized in `init()` and receives live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
+  - toggled open/closed by `#editor-fab`; sets `gameplayState.isEditorOpen` and `gameplayState.isPaused` when open
+  - orbital camera controls while open: left-drag = orbit, right-drag = pan, scroll = zoom; original camera is restored on close
+  - platform selection via Three.js `Raycaster` on canvas click; selected platform highlighted with cyan emissive override
+  - live property editing: position, size, shape, rotation, color, vertical motion, horizontal swing, destroyable flags — each change pushes history then calls `rebuildCurrentLevelPlatforms()`
+  - **Transform gizmo**: `buildGizmo(scene)` creates a `THREE.Group` with three colored axis arrows (X = red `0xff2222`, Y = green `0x22ff44`, Z = blue `0x2266ff`) rendered with `depthTest: false` so they always appear on top; the group is added to the scene once at init and shown/hidden based on selection; `scaleGizmo()` keeps the visual size constant by scaling against camera distance
+    - hovering an arrow turns it yellow (`AXIS_HOVER = 0xffdd00`)
+    - clicking and dragging an arrow moves the platform along that axis using plane-intersection math (`makeDragPlane` builds a plane containing the axis with its normal facing the camera; `rayPlaneHit` intersects the mouse ray; the delta is projected onto the axis vector for 1D movement)
+    - the mesh and Rapier body are updated live on every `mousemove` during a drag; `rebuild()` (which recreates the full physics collider) fires only on `mouseup`
+    - history is pushed at `mousedown` (before drag starts) so a full drag undo is a single step
+  - **Undo system**: `pushHistory()` deep-copies `levelState.currentProfile.layout` onto a capped stack (`MAX_HISTORY = 60`); `undo()` pops the stack, restores the layout in-place, calls `rebuildCurrentLevelPlatforms()` directly (bypassing `rebuild()` to avoid re-pushing), then refreshes the UI; history is cleared on level change and on editor close
+    - `pushHistory()` is called before: every property input `change` event, every color `input` event, gizmo drag start (`mousedown`), Add, Delete
+    - `rebuild()` itself does **not** push history — callers are responsible
+    - **Ctrl+Z** is handled by `onEditorKeyDown` (registered on `window` while the editor is open); skipped when an `<input>` or `<textarea>` is focused so browser-native field undo still works
+    - `#editor-undo-btn` also calls `undo()` for mouse-only workflows
+  - level navigation (prev/next arrows) calls `buildLevel()` to switch levels while staying in editor mode; clears history
+  - Add platform: inserts a `freshPlatformDef` before the final platform in the layout
+  - Delete platform: splices the selected entry from the layout
+  - Export JSON: copies `levelState.currentProfile.layout` to clipboard (fallback: triggers file download)
 - `core/LuaRuntime.js`
   - Wasmoon wrapper
 - `ui/UIManager.js`
@@ -429,6 +455,7 @@ Use these when validating layout generation or progression through Playwright or
   - HUD / overlay styling
   - ESC menu styles (`.esc-menu-content`, `.esc-nav`, `.esc-btn`)
   - options panel styles (`.options-panel`, `.opt-row`, `.opt-toggle`, `.opt-slider`)
+  - level editor styles (`#editor-fab`, `.editor-panel`, `.ed-item`, `.ed-num`, `.ed-sel`, `.ed-color`, `.ed-chk`, `.ed-lbl--x/y/z` axis-coloured labels, `.ed-action-btn--undo`, etc.)
 - `assets/sounds/rocket-sound.mp3`
   - rocket thrust audio cue used while Shift is active
 - `assets/sounds/impact-sound.mp3`
@@ -551,4 +578,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 27, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, game-over Enter/Escape retry shortcut)*
+*Last Updated: March 27, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, and Ctrl+Z undo)*

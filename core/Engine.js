@@ -10,6 +10,7 @@ import { createWinSoundController } from "../scripts/sound/winSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 import soundConfig from "../configs/sound-config.json";
+import { initLevelEditor } from "../editor/LevelEditor.js";
 
 const luaModules = import.meta.glob("../scripts/**/*.lua", {
   query: "?raw",
@@ -28,6 +29,7 @@ let playerCollider;
 let animationId;
 let spaceBackdropGroup;
 let bgMusicController;
+let levelEditorRef;
 let jumpSoundController;
 let rocketSoundController;
 let impactSoundController;
@@ -142,6 +144,7 @@ const gameplayState = {
   isPaused: false,
   isEscMenuOpen: false,
   isOptionsOpen: false,
+  isEditorOpen: false,
 };
 
 const jumpCameraState = {
@@ -434,6 +437,18 @@ async function init() {
   buildLevel(1);
   setupTestingHooks();
 
+  levelEditorRef = initLevelEditor({
+    scene,
+    camera,
+    renderer,
+    platforms,
+    levelState,
+    gameplayState,
+    clock,
+    rebuildCurrentLevelPlatforms,
+    buildLevel,
+  });
+
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("resize", onWindowResize);
@@ -454,6 +469,8 @@ function onKeyDown(event) {
   if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
     return;
   }
+
+  if (gameplayState.isEditorOpen) return;
 
   if (event.code === "KeyP" && !playerState.isGameOver && !levelState.isGameComplete) {
     gameplayState.isPaused = !gameplayState.isPaused;
@@ -1163,6 +1180,35 @@ function buildLevel(levelNumber) {
   );
 }
 
+function rebuildCurrentLevelPlatforms() {
+  if (!levelState.currentProfile) return;
+  clearPlatforms();
+  for (const definition of levelState.currentProfile.layout) {
+    createPlatform(
+      definition.x,
+      definition.y,
+      definition.z,
+      definition.w,
+      definition.h,
+      definition.d,
+      definition.color,
+      {
+        isFinal: definition.isFinal,
+        definition,
+        shape: definition.shape,
+        rotationY: definition.rotationY,
+        motionAmplitude: definition.motionAmplitude,
+        motionSpeed: definition.motionSpeed,
+        swingAmplitude: definition.swingAmplitude,
+        swingSpeed: definition.swingSpeed,
+        bobPhase: definition.bobPhase,
+        isDestroyable: definition.isDestroyable,
+        hitsToBreak: definition.hitsToBreak,
+      },
+    );
+  }
+}
+
 function startLevelTransition() {
   if (
     levelState.isTransitioning ||
@@ -1424,6 +1470,10 @@ function animate() {
 
   if (!gameplayState.manualStepMode && !gameplayState.isPaused) {
     updateFrame(clock.getDelta());
+  }
+
+  if (levelEditorRef?.isOpen()) {
+    levelEditorRef.tick();
   }
 
   renderer.render(scene, camera);
