@@ -637,9 +637,54 @@ function createGround() {
   scene.add(spaceBackdropGroup);
 }
 
+function normalizePlatformShape(shape) {
+  if (shape === "triangle" || shape === "square" || shape === "hex") {
+    return shape;
+  }
+  return "hex";
+}
+
+function getPlatformShapeSpec(shape) {
+  const normalized = normalizePlatformShape(shape);
+  switch (normalized) {
+    case "triangle":
+      return { shape: "triangle", sides: 3, defaultRotationY: Math.PI / 2 };
+    case "square":
+      return { shape: "square", sides: 4, defaultRotationY: Math.PI / 4 };
+    case "hex":
+    default:
+      return { shape: "hex", sides: 6, defaultRotationY: Math.PI / 6 };
+  }
+}
+
+function choosePlatformShape(rng) {
+  const roll = rng();
+  if (roll < 0.24) {
+    return "triangle";
+  }
+  if (roll < 0.52) {
+    return "square";
+  }
+  return "hex";
+}
+
 function createPlatform(x, y, z, w, h, d, color, options = {}) {
   const radius = Math.max(w, d) / 2;
-  const geometry = new THREE.CylinderGeometry(radius, radius, h, 6);
+  const shapeSpec = getPlatformShapeSpec(
+    options.shape ?? options.definition?.shape,
+  );
+  const rotationY =
+    typeof options.rotationY === "number"
+      ? options.rotationY
+      : typeof options.definition?.rotationY === "number"
+        ? options.definition.rotationY
+        : shapeSpec.defaultRotationY;
+  const geometry = new THREE.CylinderGeometry(
+    radius,
+    radius,
+    h,
+    shapeSpec.sides,
+  );
   const material = new THREE.MeshStandardMaterial({
     color,
     emissive: options.isFinal ? 0xffd166 : color,
@@ -650,7 +695,7 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
-  mesh.rotation.y = Math.PI / 6;
+  mesh.rotation.y = rotationY;
 
   const rim = new THREE.LineSegments(
     new THREE.EdgesGeometry(geometry),
@@ -690,9 +735,10 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
   );
 
   const vertices = [];
-  const offset = Math.PI / 6;
-  for (let index = 0; index < 6; index += 1) {
-    const angle = (index * Math.PI) / 3 + offset;
+  const sides = shapeSpec.sides;
+  const offset = rotationY;
+  for (let index = 0; index < sides; index += 1) {
+    const angle = (index * Math.PI * 2) / sides + offset;
     const vx = radius * Math.cos(angle);
     const vz = radius * Math.sin(angle);
     vertices.push(vx, -h / 2, vz);
@@ -720,6 +766,8 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
     swingAmplitude: options.swingAmplitude ?? 0,
     swingSpeed: options.swingSpeed ?? 0,
     isFinal: !!options.isFinal,
+    shape: shapeSpec.shape,
+    rotationY,
     definition: options.definition ?? null,
   };
 
@@ -1055,6 +1103,7 @@ function buildLevel(levelNumber) {
         swingAmplitude: definition.swingAmplitude,
         swingSpeed: definition.swingSpeed,
         bobPhase: definition.bobPhase,
+        rotationY: definition.rotationY,
       },
     );
   }
@@ -1548,6 +1597,8 @@ function createLayoutCandidate(config) {
       color:
         LEVEL_COLORS[(index + Math.floor(progress * 6)) % LEVEL_COLORS.length],
       isFinal: false,
+      shape: choosePlatformShape(rng),
+      rotationY: rng() * Math.PI * 2,
       bobPhase: ((level * 31 + index * 17) % 360) * (Math.PI / 180),
       motionAmplitude:
         hasWavingPlatforms && !isRespite && index > 0
@@ -1590,6 +1641,8 @@ function createLayoutCandidate(config) {
     d: finalDiameter,
     color: 0xffd166,
     isFinal: true,
+    shape: "hex",
+    rotationY: rng() * Math.PI * 2,
     bobPhase: ((level * 31 + platformCount * 17 + 11) % 360) * (Math.PI / 180),
     motionAmplitude: 0,
     motionSpeed: 0,
@@ -1726,6 +1779,8 @@ function setupTestingHooks() {
         x: Number(platform.mesh.position.x.toFixed(2)),
         y: Number(platform.mesh.position.y.toFixed(2)),
         final: platform.isFinal,
+        shape: platform.shape,
+        rotationY: Number(platform.rotationY.toFixed(3)),
         motionAmplitude: Number(platform.motionAmplitude.toFixed(3)),
         motionSpeed: Number(platform.motionSpeed.toFixed(3)),
         swingAmplitude: Number(platform.swingAmplitude.toFixed(3)),
