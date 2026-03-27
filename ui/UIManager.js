@@ -5,6 +5,10 @@
 export class UIManager {
   constructor() {
     this.pausedEl = document.getElementById("paused");
+    this.escMenuEl = document.getElementById("esc-menu");
+    this.escRestartBtn = document.getElementById("esc-restart-btn");
+    this.escOptionsBtn = document.getElementById("esc-options-btn");
+    this.escResumeBtn = document.getElementById("esc-resume-btn");
     this.healthValueEl = document.getElementById("health-value");
     this.healthFillEl = document.getElementById("health-fill");
     this.healthPanelEl = document.querySelector(".health-panel");
@@ -145,6 +149,18 @@ export class UIManager {
   hidePaused() {
     if (this.pausedEl) {
       this.pausedEl.style.display = "none";
+    }
+  }
+
+  showEscMenu() {
+    if (this.escMenuEl) {
+      this.escMenuEl.style.display = "flex";
+    }
+  }
+
+  hideEscMenu() {
+    if (this.escMenuEl) {
+      this.escMenuEl.style.display = "none";
     }
   }
 

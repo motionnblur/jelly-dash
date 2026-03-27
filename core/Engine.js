@@ -131,6 +131,7 @@ const levelState = {
 const gameplayState = {
   manualStepMode: false,
   isPaused: false,
+  isEscMenuOpen: false,
 };
 
 const jumpCameraState = {
@@ -450,6 +451,15 @@ function onKeyDown(event) {
     return;
   }
 
+  if (event.code === "Escape" && !playerState.isGameOver && !levelState.isGameComplete) {
+    if (gameplayState.isEscMenuOpen) {
+      closeEscMenu();
+    } else {
+      openEscMenu();
+    }
+    return;
+  }
+
   keys[event.code] = true;
   bgMusicController?.play();
 }
@@ -460,6 +470,19 @@ function onKeyUp(event) {
     return;
   }
   keys[event.code] = false;
+}
+
+function openEscMenu() {
+  gameplayState.isEscMenuOpen = true;
+  gameplayState.isPaused = true;
+  uiManager.showEscMenu();
+}
+
+function closeEscMenu() {
+  gameplayState.isEscMenuOpen = false;
+  gameplayState.isPaused = false;
+  uiManager.hideEscMenu();
+  clock.getDelta(); // discard accumulated delta so physics doesn't spike on resume
 }
 
 function createGround() {
@@ -1607,6 +1630,19 @@ function setupTestingHooks() {
   window.retryLevel = () => {
     buildLevel(levelState.currentLevel);
   };
+
+  if (uiManager.escResumeBtn) {
+    uiManager.escResumeBtn.addEventListener("click", () => {
+      closeEscMenu();
+    });
+  }
+
+  if (uiManager.escRestartBtn) {
+    uiManager.escRestartBtn.addEventListener("click", () => {
+      closeEscMenu();
+      buildLevel(1);
+    });
+  }
 }
 
 if (import.meta.hot) {
