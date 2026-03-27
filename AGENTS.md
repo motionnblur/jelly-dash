@@ -23,7 +23,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - level progression
   - platform creation and animation
   - deterministic test hooks
-- `scripts/player.lua` owns the player controller:
+- `scripts/player/main.lua` owns the player controller:
   - loader for the `scripts/player/` module set
   - movement input
   - jump handling and coyote timing
@@ -31,7 +31,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - gel drain and death checks
   - landing feedback
   - cheat command handling
-- Lua no longer owns level layout. `scripts/world.lua` still initializes the space backdrop, while `scripts/player.lua` now loads the runtime player behavior from `scripts/player/`.
+- Lua no longer owns level layout. `scripts/world.lua` still initializes the space backdrop, while `scripts/player/main.lua` now loads the runtime player behavior from `scripts/player/`.
 
 ### 2. Physics Model
 - Rapier initializes asynchronously through `RAPIER.init()`.
@@ -42,7 +42,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - There is no physical ground plane in the current campaign. The game starts in space with the player on a floating launch platform.
 
 ### 3. Player / Gel Rules
-- Horizontal movement is direct X velocity assignment, now driven from `scripts/player.lua`.
+- Horizontal movement is direct X velocity assignment, now driven from `scripts/player/main.lua`.
 - Jumping uses `jumpImpulse = 12`.
 - Releasing jump early damps upward velocity for variable jump height.
 - Landing after a fall triggers a short camera shake, and longer airtime produces stronger impact.
@@ -377,7 +377,7 @@ Use these when validating layout generation or progression through Playwright or
   - HUD / overlay styling
 - `scripts/world.lua`
   - base-world creation only
-- `scripts/player.lua`
+- `scripts/player/main.lua`
   - authoritative player loader for the player module folder
 - `scripts/player/`
   - `movement.lua`: traversal, jump, landing, drain, and fail-state logic
@@ -432,7 +432,7 @@ Adjust these in `configs/player-config.json`:
 ### If You Change Player Scale Rules
 - do not manually resize the rigid body elsewhere
 - update `playerState.gelMass` and let the JS bridge rebuild the collider
-- keep `scripts/player.lua`, the `scripts/player/` modules, and the `game.player.*` bridge methods in sync when adding new player-state fields
+- keep `scripts/player/main.lua`, the `scripts/player/` modules, and the `game.player.*` bridge methods in sync when adding new player-state fields
 
 ### If You Debug Progression
 Look at:
@@ -442,7 +442,7 @@ Look at:
 - `estimateLayoutDrain()`
 - `startLevelTransition()`
 - `queueLevelRestart()`
-- `scripts/player.lua` for player-specific state transitions and drain timing
+- `scripts/player/main.lua` for player-specific state transitions and drain timing
 
 ### UI Design (Green Glassmorphism)
 - The UI follows a medical/scifi **green glassmorphism** aesthetic:

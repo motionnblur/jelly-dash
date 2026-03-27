@@ -70,7 +70,7 @@ end
 
 local function spawnParticles(translation, color, count, speedScale, options)
     if game.player and game.player.spawnParticles then
-        game.player.spawnParticles(
+        local gelMass = game.player.spawnParticles(
             translation.x,
             translation.y,
             translation.z,
@@ -79,6 +79,9 @@ local function spawnParticles(translation, color, count, speedScale, options)
             speedScale or 1.0,
             options or {}
         )
+        if type(gelMass) == "number" then
+            return gelMass
+        end
     end
 end
 
@@ -159,7 +162,7 @@ function Movement.update(state, runtime, delta)
             state.spawnLandingGrace = false
         else
             local impactSpeed = state.lastLandingImpactSpeed
-            spawnParticles(
+            local gelMass = spawnParticles(
                 {
                     x = translation.x,
                     y = translation.y - 0.5,
@@ -169,6 +172,9 @@ function Movement.update(state, runtime, delta)
                 math.min(6 + math.floor(impactSpeed), 18),
                 0.3 + impactSpeed / 12
             )
+            if type(gelMass) == "number" then
+                state.gelMass = gelMass
+            end
         end
     end
 
@@ -193,7 +199,7 @@ function Movement.update(state, runtime, delta)
     if jumpHeld and not state.jumpWasHeld and canJump and not shiftPressed then
         state.pendingVelocity.y = config.jumpImpulse
         state.groundedCoyoteTimer = 0
-        spawnParticles(
+        local gelMass = spawnParticles(
             {
                 x = translation.x,
                 y = translation.y - 0.4,
@@ -204,6 +210,9 @@ function Movement.update(state, runtime, delta)
             1.0,
             { drainGelTotal = config.jumpGelCost }
         )
+        if type(gelMass) == "number" then
+            state.gelMass = gelMass
+        end
     elseif not jumpHeld and state.pendingVelocity.y > 0 then
         state.pendingVelocity.y = state.pendingVelocity.y * 0.9
     end
@@ -221,7 +230,7 @@ function Movement.update(state, runtime, delta)
         if state.walkDistanceAccumulator >= config.walkStepDistance then
             state.walkDistanceAccumulator =
                 state.walkDistanceAccumulator - config.walkStepDistance
-            spawnParticles(
+            local gelMass = spawnParticles(
                 {
                     x = translation.x + ((random() - 0.5) * 0.35),
                     y = translation.y - 0.48,
@@ -232,6 +241,9 @@ function Movement.update(state, runtime, delta)
                 0.75,
                 { drainGelTotal = config.walkGelCost }
             )
+            if type(gelMass) == "number" then
+                state.gelMass = gelMass
+            end
         end
     end
 

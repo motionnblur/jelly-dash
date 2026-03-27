@@ -2,7 +2,7 @@
 
 local Config = require("config")
 local World = require("world")
-local Player = require("player")
+local Player = require("player/main")
 
 print("Game Scripts Initializing (SOLID Refactor)...")
 

@@ -748,7 +748,7 @@ function drainGel(amount) {
     levelState.isGameComplete ||
     playerState.isGodMode
   ) {
-    return;
+    return playerState.gelMass;
   }
 
   playerState.gelMass = Math.max(0, playerState.gelMass - amount);
@@ -757,6 +757,8 @@ function drainGel(amount) {
   if (playerState.gelMass <= GEL_GAME_OVER_THRESHOLD) {
     triggerGameOver("depleted");
   }
+
+  return playerState.gelMass;
 }
 
 function spawnParticles(
@@ -804,6 +806,8 @@ function spawnParticles(
       lifeDecay: options.lifeDecay ?? 1.5,
     });
   }
+
+  return playerState.gelMass;
 }
 
 function syncPlayerCollider(force = false) {

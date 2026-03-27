@@ -73,7 +73,10 @@ function Skills.update(state, runtime, delta)
         if not state.isRocketBoy then
             state.rocketLevel = math.max(0, state.rocketLevel - config.drainRate * delta)
             if game.player and game.player.drainGel then
-                game.player.drainGel(config.rocketGelCost * delta)
+                local gelMass = game.player.drainGel(config.rocketGelCost * delta)
+                if type(gelMass) == "number" then
+                    state.gelMass = gelMass
+                end
             end
         else
             state.rocketLevel = 1.0

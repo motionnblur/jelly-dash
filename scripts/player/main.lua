@@ -1,4 +1,4 @@
--- scripts/player.lua
+-- scripts/player/main.lua
 
 local Config = require("config")
 local Movement = require("player/movement")
