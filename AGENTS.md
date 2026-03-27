@@ -411,5 +411,16 @@ Look at:
 - `startLevelTransition()`
 - `queueLevelRestart()`
 
+### UI Design (Glassmorphism)
+- The UI follows a medical/scifi **glassmorphism** aesthetic:
+  - Frosted glass effects using `backdrop-filter: blur(28px)`.
+  - Semi-transparent `rgba(255, 255, 255, 0.12)` backgrounds with thin `rgba(255, 255, 255, 0.22)` borders.
+  - Premium typography using the **Outfit** font with high-contrast weights (700-800).
+  - Interactive states:
+    - **Health Warning**: Status panel pulses red and the HP value shakes when health is ≤ 28 HP.
+    - **Rocket Fuel**: Panel glows and gains a sharper border while rockets (Shift) are active.
+    - **Respite Levels**: Route tags glow soft blue to indicate a recovery level.
+    - **Complete State**: Gold-themed glass with reflective text shadows for the campaign clear screen.
+
 ---
-*Last Updated: March 27, 2026 (Rocket mechanic added, red color theme, 50-level campaign)*
+*Last Updated: March 27, 2026 (Rocket mechanic added, Red glassmorphism UI, 50-level campaign)*
