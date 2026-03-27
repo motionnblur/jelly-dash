@@ -5,7 +5,7 @@ import { uiManager } from "../ui/UIManager";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 
-const luaModules = import.meta.glob("../scripts/*.lua", {
+const luaModules = import.meta.glob("../scripts/**/*.lua", {
   query: "?raw",
   import: "default",
   eager: true,
@@ -379,27 +379,15 @@ async function init() {
           triggerLandingCameraEffect(airborneTime, impactSpeed),
         syncCollider: (force = false) => syncPlayerCollider(force),
       },
-      spawnPlayer: (x, y, z) => {
-        if (!player) createPlayer();
-        playerBody.setTranslation({ x, y, z }, true);
-      },
       setGravity: (y) => {
         gameConfig.gravity = y;
         world.gravity = { x: 0, y, z: 0 };
-      },
-      applyImpulse: (x, y, z) => {
-        if (playerBody) playerBody.applyImpulse({ x, y, z }, true);
-      },
-      getVelocity: () => {
-        if (!playerBody) return { x: 0, y: 0, z: 0 };
-        const velocity = playerBody.linvel();
-        return { x: velocity.x, y: velocity.y, z: velocity.z };
       },
     },
   });
 
   for (const path in luaModules) {
-    const fileName = path.split("/").pop();
+    const fileName = path.replace("../scripts/", "");
     await luaRuntime.mountFile(fileName, luaModules[path]);
   }
 

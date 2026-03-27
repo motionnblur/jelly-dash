@@ -24,13 +24,14 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - platform creation and animation
   - deterministic test hooks
 - `scripts/player.lua` owns the player controller:
+  - loader for the `scripts/player/` module set
   - movement input
   - jump handling and coyote timing
   - rocket boost / fuel drain
   - gel drain and death checks
   - landing feedback
   - cheat command handling
-- Lua no longer owns level layout. `scripts/world.lua` still initializes the space backdrop, while `scripts/player.lua` now owns the runtime player behavior.
+- Lua no longer owns level layout. `scripts/world.lua` still initializes the space backdrop, while `scripts/player.lua` now loads the runtime player behavior from `scripts/player/`.
 
 ### 2. Physics Model
 - Rapier initializes asynchronously through `RAPIER.init()`.
@@ -377,7 +378,11 @@ Use these when validating layout generation or progression through Playwright or
 - `scripts/world.lua`
   - base-world creation only
 - `scripts/player.lua`
-  - authoritative player controller, Lua-owned movement / rocket / drain logic
+  - authoritative player loader for the player module folder
+- `scripts/player/`
+  - `movement.lua`: traversal, jump, landing, drain, and fail-state logic
+  - `skills.lua`: rocket thrust, fuel, and spin logic
+  - `cheat.lua`: terminal command handling
 - `scripts/config.lua`
   - mirrors movement / economy / detection / rocket config into Lua
 - `configs/world-config.json`
@@ -427,7 +432,7 @@ Adjust these in `configs/player-config.json`:
 ### If You Change Player Scale Rules
 - do not manually resize the rigid body elsewhere
 - update `playerState.gelMass` and let the JS bridge rebuild the collider
-- keep `scripts/player.lua` and the `game.player.*` bridge methods in sync when adding new player-state fields
+- keep `scripts/player.lua`, the `scripts/player/` modules, and the `game.player.*` bridge methods in sync when adding new player-state fields
 
 ### If You Debug Progression
 Look at:
@@ -453,4 +458,4 @@ Look at:
     - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
 
 ---
-*Last Updated: March 27, 2026 (Lua-owned player controller, Cheat System, God Mode, Green Shadowless UI, 50-level campaign)*
+*Last Updated: March 27, 2026 (Lua-owned player module folder, Cheat System, God Mode, Green Shadowless UI, 50-level campaign)*
