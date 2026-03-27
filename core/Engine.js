@@ -30,8 +30,8 @@ const LEVEL_COUNT = 50;
 const LEVEL_SEED = 0x5f3759df;
 const PLATFORM_HEIGHT = 0.5;
 const PLAYER_SPAWN = { x: 0, y: 2.15, z: 0 };
-const MAX_SAFE_LEVEL_DRAIN = 0.90;
-const JUMP_GEL_COST = 0.040;
+const MAX_SAFE_LEVEL_DRAIN = 0.9;
+const JUMP_GEL_COST = 0.04;
 const WALK_GEL_COST = 0.018;
 const WALK_STEP_DISTANCE = 2.0;
 const GEL_CRITICAL_THRESHOLD = 0.28;
@@ -45,14 +45,14 @@ const JUMP_CAMERA_SHAKE_DECAY = 4.2;
 const JUMP_CAMERA_SHAKE_OFFSET = 0.22;
 const JUMP_CAMERA_SHAKE_ROLL = 0.018;
 
+const ROCKET_THRUST = 1;
+const ROCKET_DRAIN_RATE = 0.45; // per second
+const ROCKET_REFILL_RATE = 0.22; // per second
+const ROCKET_GEL_COST = 0.1; // extra gel drain per second of flight
+
 const LEVEL_PATTERNS = ["glide", "pulse", "switchback", "crest"];
 const LEVEL_COLORS = [
-  0x70e1ff,
-  0xff8a5b,
-  0x77ff88,
-  0xff5f9d,
-  0x8b7dff,
-  0xffd166,
+  0x70e1ff, 0xff8a5b, 0x77ff88, 0xff5f9d, 0x8b7dff, 0xffd166,
 ];
 
 const playerState = {
@@ -74,6 +74,9 @@ const playerState = {
     uScale: { value: new THREE.Vector3(1, 1, 1) },
     uTilt: { value: 0 },
   },
+  rocketLevel: 1.0,
+  isRocketActive: false,
+  rocketMeshes: [],
 };
 
 const levelState = {
@@ -224,7 +227,10 @@ function createGround() {
   }
 
   const starsGeometry = new THREE.BufferGeometry();
-  starsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  starsGeometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions, 3),
+  );
 
   const starsMaterial = new THREE.PointsMaterial({
     color: 0xffffff,
@@ -281,7 +287,11 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
   if (options.isFinal) {
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(radius * 0.72, 0.08, 8, 24),
-      new THREE.MeshBasicMaterial({ color: 0xfff0a8, transparent: true, opacity: 0.9 }),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff0a8,
+        transparent: true,
+        opacity: 0.9,
+      }),
     );
     ring.rotation.x = Math.PI / 2;
     ring.position.y = h * 0.65;
@@ -401,6 +411,45 @@ function createPlayer() {
     RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setFriction(0).setRestitution(0),
     playerBody,
   );
+
+  // Add Rocket Visuals
+  playerState.rocketMeshes = [];
+  const rocketGeom = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 8);
+  const rocketMat = new THREE.MeshStandardMaterial({
+    color: 0xcc0000,
+    metalness: 0.8,
+    roughness: 0.2,
+  });
+
+  const leftRocket = new THREE.Mesh(rocketGeom, rocketMat);
+  leftRocket.position.set(-0.6, 0, 0);
+  player.add(leftRocket);
+  playerState.rocketMeshes.push(leftRocket);
+
+  const rightRocket = new THREE.Mesh(rocketGeom, rocketMat);
+  rightRocket.position.set(0.6, 0, 0);
+  player.add(rightRocket);
+  playerState.rocketMeshes.push(rightRocket);
+
+  // Thruster glow
+  const glowGeom = new THREE.CylinderGeometry(0.1, 0, 0.4, 8);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: 0xff4433,
+    transparent: true,
+    opacity: 0.8,
+  });
+
+  const leftGlow = new THREE.Mesh(glowGeom, glowMat);
+  leftGlow.position.set(0, -0.4, 0);
+  leftGlow.scale.set(0, 0, 0);
+  leftRocket.add(leftGlow);
+
+  const rightGlow = new THREE.Mesh(glowGeom, glowMat);
+  rightGlow.position.set(0, -0.4, 0);
+  rightGlow.scale.set(0, 0, 0);
+  rightRocket.add(rightGlow);
+
+  playerState.thrusterGlows = [leftGlow, rightGlow];
 }
 
 function triggerLandingCameraEffect(airborneTime, impactSpeed) {
@@ -434,7 +483,11 @@ function updateLandingCameraEffect(delta) {
 }
 
 function drainGel(amount) {
-  if (playerState.isGameOver || levelState.isTransitioning || levelState.isGameComplete) {
+  if (
+    playerState.isGameOver ||
+    levelState.isTransitioning ||
+    levelState.isGameComplete
+  ) {
     return;
   }
 
@@ -459,9 +512,7 @@ function spawnParticles(
   options = {},
 ) {
   const drainAmount =
-    color === 0x44ff44 && options.drainGelTotal
-      ? options.drainGelTotal
-      : 0;
+    color === 0x44ff44 && options.drainGelTotal ? options.drainGelTotal : 0;
 
   if (drainAmount > 0) {
     drainGel(drainAmount);
@@ -555,8 +606,9 @@ function resetPlayerForLevel() {
   playerState.jellyUniforms.uScale.value.set(1, 1, 1);
   playerState.jellyUniforms.uTilt.value = 0;
   playerState._lastColliderMass = null;
-  jumpCameraState.shake = 0;
   jumpCameraState.phase = 0;
+  playerState.rocketLevel = 1.0;
+  playerState.isRocketActive = false;
 
   if (playerBody) {
     playerBody.setTranslation(PLAYER_SPAWN, true);
@@ -727,13 +779,91 @@ function sampleGroundHit(translation) {
       },
       { x: 0, y: -1, z: 0 },
     );
-    const hit = world.castRay(ray, PLAYER_GROUND_RAY_LENGTH, true, null, null, null, playerBody);
+    const hit = world.castRay(
+      ray,
+      PLAYER_GROUND_RAY_LENGTH,
+      true,
+      null,
+      null,
+      null,
+      playerBody,
+    );
     if (hit) {
       return hit;
     }
   }
 
   return null;
+}
+
+function updateRocketPhysics(delta) {
+  if (playerState.isGameOver || levelState.isTransitioning) {
+    playerState.isRocketActive = false;
+    return;
+  }
+
+  const isShiftPressed = keys["ShiftLeft"] || keys["ShiftRight"];
+  const hasFuel = playerState.rocketLevel > 0;
+  const translation = playerBody.translation();
+
+  if (isShiftPressed && hasFuel) {
+    playerState.isRocketActive = true;
+    playerState.rocketLevel = Math.max(
+      0,
+      playerState.rocketLevel - ROCKET_DRAIN_RATE * delta,
+    );
+
+    // Apply thrust
+    const currentVel = playerBody.linvel();
+    playerBody.setLinvel(
+      {
+        x: currentVel.x,
+        y: currentVel.y + ROCKET_THRUST, // Constant upward force
+        z: currentVel.z,
+      },
+      true,
+    );
+
+    // Drain extra gel for being a rocket
+    drainGel(ROCKET_GEL_COST * delta);
+
+    // Thruster effects
+    playerState.thrusterGlows.forEach((glow) => {
+      glow.scale.set(1, 1 + Math.random() * 0.5, 1);
+    });
+
+    if (Math.random() < 0.3) {
+      spawnParticles(
+        translation.x + (Math.random() - 0.5) * 1.2,
+        translation.y - 0.5,
+        translation.z,
+        0xff4433,
+        2,
+        0.5,
+      );
+    }
+  } else {
+    playerState.isRocketActive = false;
+    // Refill only if not using and grounded (optional: or just not using)
+    // Let's refill if not using.
+    playerState.rocketLevel = Math.min(
+      1.0,
+      playerState.rocketLevel + ROCKET_REFILL_RATE * delta,
+    );
+
+    playerState.thrusterGlows.forEach((glow) => {
+      glow.scale.set(0, 0, 0);
+    });
+  }
+
+  uiManager.updateRocket(playerState.rocketLevel, playerState.isRocketActive);
+
+  // Sync rocket positions to player scale
+  const scaleXZ = playerState.jellyUniforms.uScale.value.x;
+  if (playerState.rocketMeshes[0])
+    playerState.rocketMeshes[0].position.x = -0.5 * scaleXZ - 0.1;
+  if (playerState.rocketMeshes[1])
+    playerState.rocketMeshes[1].position.x = 0.5 * scaleXZ + 0.1;
 }
 
 function updateCamera(targetPosition) {
@@ -800,20 +930,31 @@ function updatePlatforms(hit, delta) {
     const sinkSpeed = platform.isFinal ? 0.08 : 0.1;
     const returnSpeed = platform.isFinal ? 0.045 : 0.03;
     const bobOffset = platform.isFinal
-      ? Math.sin(playerState.jellyUniforms.uTime.value * 1.8 + platform.bobPhase) * 0.08
+      ? Math.sin(
+          playerState.jellyUniforms.uTime.value * 1.8 + platform.bobPhase,
+        ) * 0.08
       : platform.motionAmplitude > 0
-        ? Math.sin(playerState.jellyUniforms.uTime.value * platform.motionSpeed + platform.bobPhase) *
-          platform.motionAmplitude
+        ? Math.sin(
+            playerState.jellyUniforms.uTime.value * platform.motionSpeed +
+              platform.bobPhase,
+          ) * platform.motionAmplitude
         : 0;
 
-    const targetY = (isSteppedOn ? platform.originalY - sinkDepth : platform.originalY) + bobOffset;
+    const targetY =
+      (isSteppedOn ? platform.originalY - sinkDepth : platform.originalY) +
+      bobOffset;
     const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
 
-    platform.currentY += (targetY - platform.currentY) * alpha * Math.min(1, delta * 60);
+    platform.currentY +=
+      (targetY - platform.currentY) * alpha * Math.min(1, delta * 60);
 
-    const swingOffset = platform.swingAmplitude > 0
-      ? Math.cos(playerState.jellyUniforms.uTime.value * platform.swingSpeed + platform.bobPhase) * platform.swingAmplitude
-      : 0;
+    const swingOffset =
+      platform.swingAmplitude > 0
+        ? Math.cos(
+            playerState.jellyUniforms.uTime.value * platform.swingSpeed +
+              platform.bobPhase,
+          ) * platform.swingAmplitude
+        : 0;
     platform.currentX = platform.originalX + swingOffset;
 
     platform.body.setNextKinematicTranslation({
@@ -827,7 +968,11 @@ function updatePlatforms(hit, delta) {
 }
 
 function updateWalkDrain(delta, isGrounded, velocity) {
-  if (!isGrounded || Math.abs(velocity.x) < 0.25 || levelState.isTransitioning) {
+  if (
+    !isGrounded ||
+    Math.abs(velocity.x) < 0.25 ||
+    levelState.isTransitioning
+  ) {
     return;
   }
 
@@ -904,16 +1049,25 @@ function updateJelly(delta, isGrounded) {
 
   const stiffness = 15.0;
   playerState.jellyUniforms.uScale.value.y +=
-    (targetScaleY - playerState.jellyUniforms.uScale.value.y) * stiffness * delta;
+    (targetScaleY - playerState.jellyUniforms.uScale.value.y) *
+    stiffness *
+    delta;
   playerState.jellyUniforms.uScale.value.x +=
-    (targetScaleXZ - playerState.jellyUniforms.uScale.value.x) * stiffness * delta;
-  playerState.jellyUniforms.uScale.value.z = playerState.jellyUniforms.uScale.value.x;
+    (targetScaleXZ - playerState.jellyUniforms.uScale.value.x) *
+    stiffness *
+    delta;
+  playerState.jellyUniforms.uScale.value.z =
+    playerState.jellyUniforms.uScale.value.x;
 
   const targetTilt = velocity.x * -0.05;
   playerState.jellyUniforms.uTilt.value +=
     (targetTilt - playerState.jellyUniforms.uTilt.value) * 10.0 * delta;
 
-  playerState.jellyUniforms.uVelocity.value.set(velocity.x, velocity.y, velocity.z);
+  playerState.jellyUniforms.uVelocity.value.set(
+    velocity.x,
+    velocity.y,
+    velocity.z,
+  );
 }
 
 function updateFrame(delta) {
@@ -939,6 +1093,7 @@ function updateFrame(delta) {
   updateLandingCameraEffect(delta);
   updateWalkDrain(delta, isGrounded, velocity);
   updatePlatforms(hit, delta);
+  updateRocketPhysics(delta);
 
   if (
     hit &&
@@ -1148,10 +1303,17 @@ function createLayoutCandidate(config) {
     const sizeShrinkProgress = clamp((level - 3) / 9, 0, 1);
     const sizeShrink =
       level >= 3 && index > 0
-        ? (0.06 + rng() * 0.1 + sizeShrinkProgress * 0.16 + (index % 2 === 1 ? 0.05 : 0)) *
+        ? (0.06 +
+            rng() * 0.1 +
+            sizeShrinkProgress * 0.16 +
+            (index % 2 === 1 ? 0.05 : 0)) *
           (isRespite ? 0.72 : 1)
         : 0;
-    const diameter = clamp(platformDiameter + diameterNoise - sizeShrink, 1.95, 4.6);
+    const diameter = clamp(
+      platformDiameter + diameterNoise - sizeShrink,
+      1.95,
+      4.6,
+    );
 
     x = computePlatformSway({
       index,
@@ -1166,9 +1328,11 @@ function createLayoutCandidate(config) {
       earlyPressure,
     });
 
-    const rawSwingAmp = 0.22 + rng() * 0.28 + Math.min(0.2, Math.max(0, level - 12) * 0.009);
+    const rawSwingAmp =
+      0.22 + rng() * 0.28 + Math.min(0.2, Math.max(0, level - 12) * 0.009);
     const rawSwingSpeed = 0.55 + rng() * 0.65;
-    const hasSwing = hasSwingingPlatforms && !isRespite && index > 0 && index % 2 === 1;
+    const hasSwing =
+      hasSwingingPlatforms && !isRespite && index > 0 && index % 2 === 1;
 
     layout.push({
       x,
@@ -1177,7 +1341,8 @@ function createLayoutCandidate(config) {
       w: diameter,
       h: PLATFORM_HEIGHT,
       d: diameter,
-      color: LEVEL_COLORS[(index + Math.floor(progress * 6)) % LEVEL_COLORS.length],
+      color:
+        LEVEL_COLORS[(index + Math.floor(progress * 6)) % LEVEL_COLORS.length],
       isFinal: false,
       bobPhase: ((level * 31 + index * 17) % 360) * (Math.PI / 180),
       motionAmplitude:
@@ -1195,7 +1360,10 @@ function createLayoutCandidate(config) {
 
   const finalGap = Math.max(
     2.45,
-    (verticalGapBase + 0.38 + rng() * verticalGapVariance + earlyPressure * (isRespite ? 0.06 : 0.16)) *
+    (verticalGapBase +
+      0.38 +
+      rng() * verticalGapVariance +
+      earlyPressure * (isRespite ? 0.06 : 0.16)) *
       gapScale,
   );
   const finalX = clamp(
@@ -1203,7 +1371,11 @@ function createLayoutCandidate(config) {
     minX,
     maxX,
   );
-  const finalDiameter = clamp(platformDiameter + 0.22 + (isRespite ? 0.18 : 0), 3.0, 4.7);
+  const finalDiameter = clamp(
+    platformDiameter + 0.22 + (isRespite ? 0.18 : 0),
+    3.0,
+    4.7,
+  );
 
   layout.push({
     x: finalX,
@@ -1333,8 +1505,12 @@ function setupTestingHooks() {
             vx: Number(playerBody.linvel().x.toFixed(2)),
             vy: Number(playerBody.linvel().y.toFixed(2)),
             airborneTime: Number(playerState.airborneTime.toFixed(3)),
-            lastLandingAirTime: Number(playerState.lastLandingAirTime.toFixed(3)),
-            lastLandingImpactSpeed: Number(playerState.lastLandingImpactSpeed.toFixed(3)),
+            lastLandingAirTime: Number(
+              playerState.lastLandingAirTime.toFixed(3),
+            ),
+            lastLandingImpactSpeed: Number(
+              playerState.lastLandingImpactSpeed.toFixed(3),
+            ),
             gelMass: Number(playerState.gelMass.toFixed(3)),
           }
         : null,

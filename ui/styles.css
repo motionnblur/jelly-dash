@@ -5,6 +5,8 @@
   --panel-shadow: rgba(118, 148, 196, 0.18);
   --gel: #5cff78;
   --gel-warn: #ff6b57;
+  --rocket: #ff3333;
+  --rocket-glow: rgba(255, 51, 51, 0.4);
   --route-breather: #217dff;
 }
 
@@ -136,6 +138,39 @@ canvas {
 
 #route-tag[data-respite="true"] {
   color: var(--route-breather);
+}
+
+.rocket-panel {
+  min-width: 180px;
+}
+
+#rocket-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #bb0000 0%, #ff3333 55%, #ff8888 100%);
+  box-shadow: 0 0 20px var(--rocket-glow);
+  transition: width 0.1s linear;
+}
+
+#rocket-hint {
+  margin: 10px 0 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 51, 51, 0.6);
+  text-align: right;
+}
+
+.rocket-panel.is-empty {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
+
+.rocket-panel.is-active #rocket-fill {
+  filter: brightness(1.2);
+  box-shadow: 0 0 25px #00d2ff;
 }
 
 #loading,

@@ -15,6 +15,10 @@ export class UIManager {
     this.retryBtn = document.getElementById("retry-btn");
     this.completeRetryBtn = document.getElementById("complete-retry-btn");
 
+    this.rocketValueEl = document.getElementById("rocket-value");
+    this.rocketFillEl = document.getElementById("rocket-fill");
+    this.rocketPanelEl = document.querySelector(".rocket-panel");
+
     if (this.retryBtn) {
       this.retryBtn.addEventListener("click", () => {
         window.location.reload();
@@ -50,6 +54,23 @@ export class UIManager {
       if (this.healthValueEl) {
         this.healthValueEl.classList.toggle("is-critical", isCritical);
       }
+    }
+  }
+
+  updateRocket(rocketLevel, isActive) {
+    const percent = Math.round(rocketLevel * 100);
+
+    if (this.rocketValueEl) {
+      this.rocketValueEl.innerText = `${percent}`;
+    }
+
+    if (this.rocketFillEl) {
+      this.rocketFillEl.style.width = `${percent}%`;
+    }
+
+    if (this.rocketPanelEl) {
+      this.rocketPanelEl.classList.toggle("is-active", isActive);
+      this.rocketPanelEl.classList.toggle("is-empty", rocketLevel <= 0);
     }
   }
 

@@ -18,7 +18,8 @@ function Player.update(delta)
         dashCooldown = dashCooldown - delta
     end
     
-    -- Dash Ability (L-Shift)
+    -- Dash Ability (L-Shift) - REDEFINED to Rockets in Engine.js
+    --[[
     if game.isKeyDown("ShiftLeft") and dashCooldown <= 0 then
         local direction = 0
         if game.isKeyDown("KeyD") or game.isKeyDown("ArrowRight") then direction = 1 end
@@ -30,6 +31,7 @@ function Player.update(delta)
             dashCooldown = Config.DASH_COOLDOWN
         end
     end
+    ]]
 end
 
 return Player

@@ -42,6 +42,13 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Health warning starts at `28 HP` (28%), but actual death happens only at `0`.
 - When the player dies, the run freezes and the `GEL DEPLETED` overlay appears.
 
+### 4. Rocket Boost Mechanic (L-Shift)
+- The player is equipped with red metallic rockets on both sides.
+- Activating rockets (Shift) applies a continuous upward thrust: `ROCKET_THRUST = 0.42`.
+- Rockets consume fuel from a dedicated meter: `ROCKET_DRAIN_RATE = 0.45` (refills at `0.22` when idle).
+- Rocket meshes dynamically sync their X position to the player's current shader-driven scale (`uScale.xz`).
+- Thruster visuals include a red glow and red exhaustion particles.
+
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
   - `JUMP_GEL_COST = 0.045` (4.5 HP per jump at 100-HP display scale)
@@ -50,6 +57,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - one walking drain event fires every `WALK_STEP_DISTANCE = 2.0` world units while grounded and moving
   - effective drain rate: `0.018 / 2.0 = 0.009` gel per world unit walked
 - Landing particles are cosmetic feedback and currently do not directly drain health.
+- Rocket usage incurs a continuous systemic cost: `ROCKET_GEL_COST = 0.005` (0.5 HP per second while active).
 - Level generation is tuned around a target maximum expected level drain:
   - `MAX_SAFE_LEVEL_DRAIN = 0.90`
 
@@ -381,7 +389,14 @@ The cleanest approach is:
 ### If You Add New Gel-Draining Effects
 - Prefer explicit drain through `drainGel(amount)` or `spawnParticles(..., { drainGelTotal })`
 - Do not hide health costs in unrelated visual-only effects unless the mechanic is meant to be systemic
-- Remember that new drains can invalidate the current level-budget math
+- Remember that new drains (like Rocket usage) can invalidate the current level-budget math.
+
+### If You Want To Tune Rockets
+Adjust these in `core/Engine.js`:
+- `ROCKET_THRUST`: Upward force intensity.
+- `ROCKET_DRAIN_RATE`: How fast the fuel meter empties.
+- `ROCKET_REFILL_RATE`: How fast the fuel meter recovers.
+- `ROCKET_GEL_COST`: The health penalty for using rockets.
 
 ### If You Change Player Scale Rules
 - do not manually resize the rigid body elsewhere
@@ -397,4 +412,4 @@ Look at:
 - `queueLevelRestart()`
 
 ---
-*Last Updated: March 26, 2026 (50-level campaign, aggressive drain economy — 100 HP display, health management as core challenge)*
+*Last Updated: March 27, 2026 (Rocket mechanic added, red color theme, 50-level campaign)*
