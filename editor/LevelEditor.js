@@ -251,6 +251,20 @@ export function initLevelEditor({
   fab.addEventListener("click",   () => (isOpen ? closeEditor() : openEditor()));
   closeBtn.addEventListener("click", closeEditor);
 
+  function resetOrbitCamera() {
+    orbit.theta  = 0;
+    orbit.phi    = 0.42;
+    orbit.radius = 22;
+    if (platforms.length > 0) {
+      let sumY = 0;
+      for (const p of platforms) sumY += p.mesh.position.y;
+      orbit.target.set(0, sumY / platforms.length + 1, 0);
+    } else {
+      orbit.target.set(0, 5, 0);
+    }
+    syncOrbitCamera();
+  }
+
   function onEditorKeyDown(e) {
     // Don't intercept browser undo inside text inputs
     if (document.activeElement?.tagName === "INPUT" ||
@@ -258,6 +272,10 @@ export function initLevelEditor({
     if (e.ctrlKey && e.key === "z") {
       e.preventDefault();
       undo();
+    }
+    if (e.key === "r" || e.key === "R") {
+      e.preventDefault();
+      resetOrbitCamera();
     }
   }
 
