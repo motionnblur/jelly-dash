@@ -1,7 +1,7 @@
 -- scripts/init.lua
 
-local Config = require("config")
-local World = require("world")
+require("shared/config")
+local World = require("shared/world")
 local Player = require("player/main")
 
 print("Game Scripts Initializing (SOLID Refactor)...")

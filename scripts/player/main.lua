@@ -1,6 +1,6 @@
 -- scripts/player/main.lua
 
-local Config = require("config")
+local Config = require("shared/config")
 local Movement = require("player/movement")
 local Skills = require("player/skills")
 local Cheat = require("player/cheat")

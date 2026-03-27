@@ -1,4 +1,4 @@
--- scripts/config.lua
+-- scripts/shared/config.lua
 
 local Config = {}
 

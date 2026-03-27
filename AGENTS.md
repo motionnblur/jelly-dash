@@ -31,7 +31,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - gel drain and death checks
   - landing feedback
   - cheat command handling
-- Lua no longer owns level layout. `scripts/world.lua` still initializes the space backdrop, while `scripts/player/main.lua` now loads the runtime player behavior from `scripts/player/`.
+- Lua no longer owns level layout. `scripts/shared/world.lua` still initializes the space backdrop, while `scripts/player/main.lua` now loads the runtime player behavior from `scripts/player/`.
 
 ### 2. Physics Model
 - Rapier initializes asynchronously through `RAPIER.init()`.
@@ -375,7 +375,7 @@ Use these when validating layout generation or progression through Playwright or
   - HUD updates and overlay visibility
 - `ui/styles.css`
   - HUD / overlay styling
-- `scripts/world.lua`
+- `scripts/shared/world.lua`
   - base-world creation only
 - `scripts/player/main.lua`
   - authoritative player loader for the player module folder
@@ -383,7 +383,7 @@ Use these when validating layout generation or progression through Playwright or
   - `movement.lua`: traversal, jump, landing, drain, and fail-state logic
   - `skills.lua`: rocket thrust, fuel, and spin logic
   - `cheat.lua`: terminal command handling
-- `scripts/config.lua`
+- `scripts/shared/config.lua`
   - mirrors movement / economy / detection / rocket config into Lua
 - `configs/world-config.json`
   - centralized global parameters (gravity, colors, level generation)

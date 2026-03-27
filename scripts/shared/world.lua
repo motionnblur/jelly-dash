@@ -1,4 +1,4 @@
--- scripts/world.lua
+-- scripts/shared/world.lua
 
 local World = {}
 
