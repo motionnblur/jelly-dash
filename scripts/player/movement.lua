@@ -128,6 +128,7 @@ function Movement.resetState(state)
     state.jellyScale = { x = 1, y = 1, z = 1 }
     state.jumpWasHeld = false
     state.pendingVelocity = { x = 0, y = 0, z = 0 }
+    state.doubleJumpUsed = false
 end
 
 function Movement.update(state, runtime, delta)
@@ -205,9 +206,18 @@ function Movement.update(state, runtime, delta)
     local shiftPressed = hasInput("ShiftLeft") or hasInput("ShiftRight")
     local canJump = isGrounded or state.groundedCoyoteTimer > 0
 
-    if jumpHeld and not state.jumpWasHeld and canJump and not shiftPressed then
+    if isGrounded then
+        state.doubleJumpUsed = false
+    end
+
+    local canDoubleJump = not canJump and not state.doubleJumpUsed
+
+    if jumpHeld and not state.jumpWasHeld and (canJump or canDoubleJump) and not shiftPressed then
         state.pendingVelocity.y = config.jumpImpulse
         state.groundedCoyoteTimer = 0
+        if canDoubleJump then
+            state.doubleJumpUsed = true
+        end
         if game.player and game.player.playJumpSound then
             game.player.playJumpSound()
         end
