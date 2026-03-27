@@ -424,6 +424,7 @@ Use these when validating layout generation or progression through Playwright or
   - `showEscMenu` / `hideEscMenu`
   - `showOptions` / `hideOptions`
   - `setMasterOffDim(bool)` — toggles `.master-off` on `.opt-body`
+  - capture-phase keydown listener: Enter/Escape triggers RETRY when game-over overlay is open; uses `stopImmediatePropagation` to block Engine's ESC handler
 - `ui/styles.css`
   - HUD / overlay styling
   - ESC menu styles (`.esc-menu-content`, `.esc-nav`, `.esc-btn`)
@@ -538,15 +539,16 @@ Look at:
   - Premium typography using the **Outfit** font with high-contrast weights (700-800) in green tones.
 - **Portrait Layout**: The game renders in a **9:16 portrait canvas** (`getPortraitSize()` in `core/Engine.js` caps width at `height × 9/16`). The canvas is centered in the browser window via a flex body. `#game-wrap` is a `position: relative` container sized by JS; the canvas and `#overlay` live inside it. All other overlays remain `position: fixed` and cover the full viewport.
 - **HUD Layout**:
-  - **Stat panel** (`#stat-panel`): a single compact 148 px-wide glass panel at top-left. Contains two icon rows — `⬡` (GEL / HP) and `▲` (Rocket / %) — each with a value and a thin 5 px bar. Rows are separated by a 1 px divider.
+  - **Stat panel** (`#stat-panel`): a compact 72 px-wide glass panel at top-left containing two side-by-side vertical bar columns. Each column (`.vbar-col`) has an icon at the top (`⬡` for GEL, `▲` for Rocket), a tall narrow pill track (`.vbar-track`, 10 px wide, min 80 px tall) whose fill (`.vbar-fill`) grows from the bottom via `height %`, and a value + unit label at the bottom. `UIManager` sets `style.height` (not `style.width`) on `#health-fill` and `#rocket-fill`.
   - **Route panel** (`.level-panel`): glass panel positioned `position: absolute; bottom: 8px; left: 8px` inside `#game-wrap`. Shows current level and route tag.
 - Interactive states:
   - **Health Warning**: `#health-value` shakes and `.health-panel .stat-icon` turns red when health is ≤ 28 HP.
   - **Rocket Active**: `.stat-icon--boost` brightens while rockets are active; `.rocket-panel.is-empty` dims when fuel is zero.
+- **Game-over keyboard shortcuts**: When the game-over overlay is visible, pressing **Enter** or **Escape** triggers the RETRY button. This listener is registered in the **capture phase** (`addEventListener("keydown", …, true)`) and calls `e.stopImmediatePropagation()` so the Engine's ESC-menu handler never fires at the same time.
   - **System Terminal**: A centered pop-up terminal for entering cheat codes.
   - **Respite Levels**: Route tags glow soft blue to indicate a recovery level.
   - **Complete State**: Gold-themed glass with reflective styling for the campaign clear screen.
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 27, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, route panel moved to bottom-left)*
+*Last Updated: March 27, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, game-over Enter/Escape retry shortcut)*

@@ -53,6 +53,18 @@ export class UIManager {
       });
     }
 
+    window.addEventListener("keydown", (e) => {
+      if (
+        (e.code === "Enter" || e.code === "Escape") &&
+        this.gameOverEl &&
+        this.gameOverEl.style.display === "flex"
+      ) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.retryBtn?.click();
+      }
+    }, true);
+
     if (this.completeRetryBtn) {
       this.completeRetryBtn.addEventListener("click", () => {
         window.location.reload();
