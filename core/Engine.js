@@ -130,6 +130,7 @@ const levelState = {
 
 const gameplayState = {
   manualStepMode: false,
+  isPaused: false,
 };
 
 const jumpCameraState = {
@@ -435,6 +436,17 @@ function onKeyDown(event) {
 
   // Ignore game input if typing in an input field
   if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
+    return;
+  }
+
+  if (event.code === "KeyP" && !playerState.isGameOver && !levelState.isGameComplete) {
+    gameplayState.isPaused = !gameplayState.isPaused;
+    if (gameplayState.isPaused) {
+      uiManager.showPaused();
+    } else {
+      uiManager.hidePaused();
+      clock.getDelta(); // discard accumulated delta so physics doesn't spike on resume
+    }
     return;
   }
 
@@ -1163,7 +1175,7 @@ function updateFrame(delta) {
 function animate() {
   animationId = requestAnimationFrame(animate);
 
-  if (!gameplayState.manualStepMode) {
+  if (!gameplayState.manualStepMode && !gameplayState.isPaused) {
     updateFrame(clock.getDelta());
   }
 

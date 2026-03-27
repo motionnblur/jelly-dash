@@ -4,6 +4,7 @@
  */
 export class UIManager {
   constructor() {
+    this.pausedEl = document.getElementById("paused");
     this.healthValueEl = document.getElementById("health-value");
     this.healthFillEl = document.getElementById("health-fill");
     this.healthPanelEl = document.querySelector(".health-panel");
@@ -132,6 +133,18 @@ export class UIManager {
   hideGameComplete() {
     if (this.gameCompleteEl) {
       this.gameCompleteEl.style.display = "none";
+    }
+  }
+
+  showPaused() {
+    if (this.pausedEl) {
+      this.pausedEl.style.display = "flex";
+    }
+  }
+
+  hidePaused() {
+    if (this.pausedEl) {
+      this.pausedEl.style.display = "none";
     }
   }
 

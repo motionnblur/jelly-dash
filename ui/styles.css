@@ -209,7 +209,8 @@ canvas {
 /* Overlays: Loading, Game Over, Complete */
 #loading,
 #game-over,
-#game-complete {
+#game-complete,
+#paused {
   position: fixed;
   inset: 0;
   display: none;
