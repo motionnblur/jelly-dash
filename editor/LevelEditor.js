@@ -486,8 +486,35 @@ export function initLevelEditor({
 
   undoBtn?.addEventListener("click", undo);
 
+  // Read all visible property inputs and write them into the layout def.
+  // This captures any uncommitted input values (typed but not yet blurred)
+  // before serializing the profile for save.
+  function flushPropertiesToDef() {
+    if (selectedIndex < 0 || !levelState.currentProfile) return;
+    const def = levelState.currentProfile.layout[selectedIndex];
+    if (!def) return;
+    const g = (id) => document.getElementById(id);
+
+    const x = parseFloat(g("p-x")?.value);   if (!isNaN(x))   def.x = x;
+    const y = parseFloat(g("p-y")?.value);   if (!isNaN(y))   def.y = y;
+    const z = parseFloat(g("p-z")?.value);   if (!isNaN(z))   def.z = z;
+    const w = parseFloat(g("p-w")?.value);   if (!isNaN(w)) { def.w = w; def.d = w; }
+    const h = parseFloat(g("p-h")?.value);   if (!isNaN(h))   def.h = h;
+    const rot = parseFloat(g("p-rot")?.value); if (!isNaN(rot)) def.rotationY = (rot * Math.PI) / 180;
+    const shapeEl = g("p-shape"); if (shapeEl) def.shape = shapeEl.value;
+    const colorEl = g("p-color"); if (colorEl) def.color = parseInt(colorEl.value.slice(1), 16);
+    const mamp = parseFloat(g("p-mamp")?.value); if (!isNaN(mamp)) def.motionAmplitude = mamp;
+    const mspd = parseFloat(g("p-mspd")?.value); if (!isNaN(mspd)) def.motionSpeed    = mspd;
+    const samp = parseFloat(g("p-samp")?.value); if (!isNaN(samp)) def.swingAmplitude  = samp;
+    const sspd = parseFloat(g("p-sspd")?.value); if (!isNaN(sspd)) def.swingSpeed      = sspd;
+    const finalEl   = g("p-final");   if (finalEl)   def.isFinal      = finalEl.checked;
+    const destroyEl = g("p-destroy"); if (destroyEl) def.isDestroyable = destroyEl.checked;
+    const hits = parseInt(g("p-hits")?.value); if (!isNaN(hits)) def.hitsToBreak = hits;
+  }
+
   exportBtn.addEventListener("click", () => {
     if (!levelState.currentProfile) return;
+    flushPropertiesToDef();
     const profile = levelState.currentProfile;
     exportBtn.textContent = "SAVING...";
     exportBtn.disabled = true;

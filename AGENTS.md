@@ -171,7 +171,7 @@ Each entry in `layout` is a platform definition:
 | `swingSpeed` | number | Horizontal pendulum frequency |
 
 ### Editing Levels
-Use the in-game level editor (FAB button, bottom-right). When done, click **EXPORT JSON** to download `levelN.json` and replace the corresponding file in `assets/levels/`.
+Use the in-game level editor (FAB button, bottom-right). When done, click **SAVE** to write `levelN.json` directly to `assets/levels/` on disk. After saving, a full page reload (F5) picks up the changes — no dev server restart needed.
 
 ### What Makes Later Levels Harder
 Difficulty grows across the 50 levels via the stored layout data:
@@ -269,7 +269,7 @@ Use these when validating layout generation or progression through Playwright or
   - level navigation (prev/next arrows) calls `buildLevel()` to switch levels while staying in editor mode; clears history
   - Add platform: inserts a `freshPlatformDef` before the final platform in the layout
   - Delete platform: splices the selected entry from the layout
-  - Export JSON: downloads `levelN.json` containing the full profile object (`level`, `isRespite`, `label`, `estimatedDrain`, `layout`); also attempts to copy to clipboard
+  - **SAVE button** (`#editor-export-btn`): POSTs the full profile object (`level`, `isRespite`, `label`, `estimatedDrain`, `layout`) to `/api/save-level`; before serializing, calls `flushPropertiesToDef()` to capture any uncommitted input values (typed but not yet blurred); on success shows `✓ SAVED`, on failure shows `✗ FAILED`
 - `core/LuaRuntime.js`
   - Wasmoon wrapper
 - `ui/UIManager.js`
@@ -322,11 +322,13 @@ Use these when validating layout generation or progression through Playwright or
   - static level data; each file is one profile object loaded eagerly at startup
 - `tools/generate-levels.js`
   - one-off Node.js ESM script that regenerates all 50 JSON files using the original seeded generator math; run with `node tools/generate-levels.js`
+- `vite.config.js`
+  - defines the `levelSaverPlugin` Vite dev plugin; adds a `POST /api/save-level` middleware that writes the POSTed profile JSON to `assets/levels/levelN.json` and invalidates the corresponding module in Vite's module graph so the next F5 serves fresh data; also sets `server.watch.ignored` for `assets/levels/**` to prevent HMR page reloads when level files change
 
 ## Developer Notes For Agents
 
 ### If You Want To Rebalance Difficulty
-- Edit individual level JSON files in `assets/levels/` using the in-game editor and export
+- Edit individual level JSON files in `assets/levels/` using the in-game level editor and click **SAVE**
 - To rebalance gel drain economy, change `configs/player-config.json`: `gelEconomy.jumpCost`, `gelEconomy.walkCost`, `gelEconomy.walkStepDistance`
 - To regenerate all levels from scratch with different seeded parameters, edit `tools/generate-levels.js` constants and run `node tools/generate-levels.js`
 
@@ -334,9 +336,8 @@ Use these when validating layout generation or progression through Playwright or
 1. Open the in-game level editor (FAB button)
 2. Navigate to the desired level
 3. Edit platforms using the gizmo, property panel, Add/Delete buttons
-4. Click **EXPORT JSON** — this downloads `levelN.json` with the full profile
-5. Copy the downloaded file to `assets/levels/levelN.json`
-6. Rebuild/reload the game
+4. Click **SAVE** — writes the profile directly to `assets/levels/levelN.json` on disk
+5. Press F5 to reload the game; changes are live
 
 ### If You Want To Make Respite Levels More Frequent
 Edit `tools/generate-levels.js`:
@@ -403,4 +404,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 27, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, and Ctrl+Z undo)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, Ctrl+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*

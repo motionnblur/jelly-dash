@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { writeFileSync } from "fs";
 import { resolve } from "path";
+import { normalizePath } from "vite";
 
 function levelSaverPlugin() {
   return {
@@ -19,6 +20,17 @@ function levelSaverPlugin() {
             const profile = JSON.parse(body);
             const filePath = resolve("assets/levels", `level${profile.level}.json`);
             writeFileSync(filePath, JSON.stringify(profile, null, 2));
+
+            // Invalidate the module in Vite's graph so the next page reload
+            // re-reads the file from disk instead of serving a cached version.
+            const normalizedPath = normalizePath(filePath);
+            const mods = server.moduleGraph.getModulesByFile(normalizedPath);
+            if (mods) {
+              for (const mod of mods) {
+                server.moduleGraph.invalidateModule(mod);
+              }
+            }
+
             res.setHeader("Content-Type", "application/json");
             res.statusCode = 200;
             res.end(JSON.stringify({ ok: true }));
