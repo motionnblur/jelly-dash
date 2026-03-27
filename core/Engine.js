@@ -6,6 +6,7 @@ import { createBackgroundMusicController } from "../scripts/sound/bgMusic";
 import { createJumpSoundController } from "../scripts/sound/jumpSound";
 import { createRocketSoundController } from "../scripts/sound/rocketSound";
 import { createImpactSoundController } from "../scripts/sound/impactSound";
+import { createWinSoundController } from "../scripts/sound/winSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 import soundConfig from "../configs/sound-config.json";
@@ -30,6 +31,7 @@ let bgMusicController;
 let jumpSoundController;
 let rocketSoundController;
 let impactSoundController;
+let winSoundController;
 
 const platforms = [];
 const particles = [];
@@ -327,6 +329,7 @@ async function init() {
   jumpSoundController = createJumpSoundController(soundConfig);
   rocketSoundController = createRocketSoundController(soundConfig);
   impactSoundController = createImpactSoundController(soundConfig);
+  winSoundController = createWinSoundController(soundConfig);
 
   clock = new THREE.Clock();
 
@@ -940,6 +943,8 @@ function startLevelTransition() {
   levelState.isTransitioning = true;
   levelState.transitionTimer = 1.25; // 3 second delay
   levelState.pendingLevel = nextLevel <= LEVEL_COUNT ? nextLevel : "complete";
+
+  winSoundController?.play();
 
   if (playerBody) {
     playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
