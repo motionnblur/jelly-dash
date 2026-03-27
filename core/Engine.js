@@ -449,6 +449,11 @@ async function init() {
     player,
     rebuildCurrentLevelPlatforms,
     buildLevel,
+    resetPlayerForTest: () => {
+      playerState.isGameOver = false;
+      uiManager.hideGameOver();
+      resetPlayerForLevel();
+    },
   });
 
   window.addEventListener("keydown", onKeyDown);

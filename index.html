@@ -261,10 +261,16 @@
       </div>
 
       <div class="editor-footer">
-        <button id="editor-export-btn" class="ed-action-btn ed-action-btn--full">SAVE</button>
-        <div class="editor-hint">LMB drag: orbit · RMB drag: pan · Scroll: zoom · Ctrl+Z: undo</div>
+        <div class="editor-footer-actions">
+          <button id="editor-test-btn" class="ed-action-btn ed-action-btn--test">▶ TEST</button>
+          <button id="editor-export-btn" class="ed-action-btn ed-action-btn--save">SAVE</button>
+        </div>
+        <div class="editor-hint">LMB drag: orbit · RMB drag: pan · Scroll: zoom · Ctrl+Z: undo · R: reset cam</div>
       </div>
     </div>
+
+    <!-- Editor test mode: stop button shown while testing -->
+    <button id="editor-stop-test" style="display:none;">◼ STOP TEST</button>
 
     <div id="cheat-console" style="display: none;">
         <div class="console-shell">

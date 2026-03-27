@@ -86,8 +86,10 @@ export function initLevelEditor({
   player,
   rebuildCurrentLevelPlatforms,
   buildLevel,
+  resetPlayerForTest,
 }) {
   let isOpen        = false;
+  let isTestMode    = false;
   let selectedIndex = -1;
 
   // ── History ────────────────────────────────────────────────────────────────
@@ -167,6 +169,8 @@ export function initLevelEditor({
   const deleteBtn      = document.getElementById("editor-delete-btn");
   const exportBtn      = document.getElementById("editor-export-btn");
   const undoBtn        = document.getElementById("editor-undo-btn");
+  const testBtn        = document.getElementById("editor-test-btn");
+  const stopTestBtn    = document.getElementById("editor-stop-test");
   const prevLvlBtn     = document.getElementById("editor-prev-level");
   const nextLvlBtn     = document.getElementById("editor-next-level");
   const levelLabelEl   = document.getElementById("editor-level-label");
@@ -220,6 +224,10 @@ export function initLevelEditor({
   }
 
   function closeEditor() {
+    if (isTestMode) {
+      isTestMode = false;
+      stopTestBtn.style.display = "none";
+    }
     isOpen = false;
     gameplayState.isEditorOpen = false;
     gameplayState.isPaused     = false;
@@ -247,9 +255,80 @@ export function initLevelEditor({
     window.removeEventListener("keydown",                 onEditorKeyDown);
   }
 
+  function enterTestMode() {
+    isTestMode = true;
+
+    // Remove editor input listeners while playing
+    renderer.domElement.removeEventListener("mousedown",   onMouseDown);
+    renderer.domElement.removeEventListener("click",       onCanvasClick);
+    window.removeEventListener("mousemove",               onMouseMove);
+    window.removeEventListener("mouseup",                 onMouseUp);
+    renderer.domElement.removeEventListener("wheel",       onWheel);
+    renderer.domElement.removeEventListener("contextmenu", suppressCtx);
+    window.removeEventListener("keydown",                 onEditorKeyDown);
+
+    // Ensure platforms reflect current edits
+    rebuildCurrentLevelPlatforms();
+
+    // Reset player to level start
+    resetPlayerForTest?.();
+
+    // Hide editor panel and gizmo
+    panel.classList.remove("editor-panel--open");
+    gizmo.visible = false;
+
+    // Restore gameplay camera and show player + HUD
+    camera.position.copy(savedCam.pos);
+    camera.quaternion.copy(savedCam.quat);
+    if (player) player.visible = true;
+    gameHudEls.forEach((el) => { el.style.display = ""; });
+
+    // Resume gameplay
+    gameplayState.isEditorOpen = false;
+    gameplayState.isPaused     = false;
+    clock.getDelta();
+
+    stopTestBtn.style.display = "";
+  }
+
+  function exitTestMode() {
+    isTestMode = false;
+
+    // Restore platforms (may have been destroyed during test) and reset player
+    rebuildCurrentLevelPlatforms();
+    resetPlayerForTest?.();
+
+    // Re-pause and restore editor state
+    gameplayState.isEditorOpen = true;
+    gameplayState.isPaused     = true;
+    clock.getDelta();
+
+    // Restore orbital camera
+    syncOrbitCamera();
+
+    // Hide player and HUD, show editor panel
+    if (player) player.visible = false;
+    gameHudEls.forEach((el) => { el.style.display = "none"; });
+    panel.classList.add("editor-panel--open");
+    placeGizmo();
+
+    stopTestBtn.style.display = "none";
+
+    // Re-add editor input listeners
+    renderer.domElement.addEventListener("mousedown",   onMouseDown);
+    renderer.domElement.addEventListener("click",       onCanvasClick);
+    window.addEventListener("mousemove",               onMouseMove);
+    window.addEventListener("mouseup",                 onMouseUp);
+    renderer.domElement.addEventListener("wheel",       onWheel, { passive: false });
+    renderer.domElement.addEventListener("contextmenu", suppressCtx);
+    window.addEventListener("keydown",                 onEditorKeyDown);
+  }
+
   const suppressCtx = (e) => e.preventDefault();
   fab.addEventListener("click",   () => (isOpen ? closeEditor() : openEditor()));
   closeBtn.addEventListener("click", closeEditor);
+  testBtn?.addEventListener("click", () => (isTestMode ? exitTestMode() : enterTestMode()));
+  stopTestBtn?.addEventListener("click", exitTestMode);
 
   function resetOrbitCamera() {
     orbit.theta  = 0;
