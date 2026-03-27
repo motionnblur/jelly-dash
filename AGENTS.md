@@ -60,6 +60,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - Thruster visuals include a red glow and red exhaustion particles.
 - `assets/sounds/rocket-sound.mp3` plays while rockets are active and is paused + rewound when thrust stops.
 - Audio playback is owned by `scripts/sound/rocketSound.js`; `core/Engine.js` only forwards `playerState.isRocketActive` into the controller.
+- `assets/sounds/bg-music.mp3` loops as low-volume background music and is started by `scripts/sound/bgMusic.js`.
 
 ### 4. Drain Economy
 - Jump drain is explicit and deterministic:
@@ -382,6 +383,10 @@ Use these when validating layout generation or progression through Playwright or
   - rocket thrust audio cue used while Shift is active
 - `assets/sounds/impact-sound.mp3`
   - hurt / landing impact audio cue used on damaging falls
+- `assets/sounds/bg-music.mp3`
+  - looping background music at low volume
+- `scripts/sound/bgMusic.js`
+  - background music controller
 - `scripts/sound/rocketSound.js`
   - rocket thrust audio controller
 - `scripts/sound/impactSound.js`
