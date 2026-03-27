@@ -3,7 +3,7 @@
   --glass: rgba(0, 40, 20, 0.15); /* Darker green glass */
   --glass-border: rgba(92, 255, 120, 0.25);
   --glass-glow: rgba(92, 255, 120, 0.1);
-  --panel-shadow: rgba(0, 0, 0, 0.3);
+  --panel-shadow: none;
   
   --gel: #5cff78;
   --gel-gradient: linear-gradient(135deg, #4fe46b 0%, #87ff83 55%, #dfff74 100%);
@@ -57,9 +57,7 @@ canvas {
   background: 
     linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, rgba(92, 255, 120, 0.02) 100%),
     var(--glass);
-  box-shadow: 
-    0 8px 32px 0 rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px rgba(92, 255, 120, 0.05);
+  box-shadow: none;
   backdrop-filter: blur(28px) saturate(120%);
   -webkit-backdrop-filter: blur(28px) saturate(120%);
   overflow: hidden;
@@ -109,7 +107,6 @@ canvas {
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--font-bright);
-  text-shadow: 0 0 16px rgba(92, 255, 120, 0.3);
 }
 
 .health-unit {
@@ -123,12 +120,11 @@ canvas {
 /* Critical State */
 #health-value.is-critical {
   color: #ff7c6b;
-  text-shadow: 0 0 12px rgba(255, 124, 107, 0.4);
   animation: healthShake 0.34s ease-in-out infinite;
 }
 
 .health-panel.is-critical {
-  border-color: rgba(255, 124, 107, 0.4);
+  border-color: rgba(255, 124, 107, 0.8);
   animation: glassPulseRed 1.2s ease-in-out infinite;
 }
 
@@ -139,7 +135,7 @@ canvas {
   overflow: hidden;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.3);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
 }
 
 #health-fill {
@@ -147,13 +143,12 @@ canvas {
   height: 100%;
   border-radius: inherit;
   background: var(--gel-gradient);
-  box-shadow: 0 0 20px rgba(92, 255, 120, 0.35);
+  box-shadow: none;
   transition: width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 #health-fill[data-critical="true"] {
   background: var(--gel-warn-gradient);
-  box-shadow: 0 0 20px rgba(255, 95, 87, 0.35);
 }
 
 /* Rocket Panel */
@@ -166,7 +161,7 @@ canvas {
   height: 100%;
   border-radius: inherit;
   background: var(--rocket-gradient);
-  box-shadow: 0 0 20px var(--rocket-glow);
+  box-shadow: none;
   transition: width 0.1s linear;
 }
 
@@ -186,12 +181,11 @@ canvas {
 }
 
 .rocket-panel.is-active {
-  border-color: rgba(255, 80, 80, 0.5);
+  border-color: rgba(255, 80, 80, 0.82);
 }
 
 .rocket-panel.is-active #rocket-fill {
   filter: brightness(1.2);
-  box-shadow: 0 0 28px rgba(255, 50, 50, 0.6);
 }
 
 /* Level Panel */
@@ -206,12 +200,10 @@ canvas {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--font-main);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 #route-tag[data-respite="true"] {
   color: #60a5ff;
-  text-shadow: 0 0 10px rgba(37, 139, 255, 0.4);
 }
 
 /* Overlays: Loading, Game Over, Complete */
@@ -244,9 +236,7 @@ canvas {
   background: 
     linear-gradient(135deg, rgba(92, 255, 120, 0.08) 0%, rgba(92, 255, 120, 0.01) 100%),
     rgba(10, 20, 15, 0.2);
-  box-shadow: 
-    0 30px 90px -20px rgba(0, 0, 0, 0.7),
-    inset 0 0 0 1px rgba(92, 255, 120, 0.04);
+  box-shadow: none;
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
   text-align: left;
@@ -269,7 +259,6 @@ h1, h2 {
   letter-spacing: -0.05em;
   font-weight: 700;
   color: var(--font-bright);
-  text-shadow: 0 0 40px rgba(92, 255, 120, 0.15);
 }
 
 .loading-copy,
@@ -286,7 +275,7 @@ h1, h2 {
 
 /* Game Complete Special Styling */
 #game-complete .game-over-content {
-  border-color: rgba(255, 215, 0, 0.4);
+  border-color: rgba(255, 215, 0, 0.8);
   background: 
     linear-gradient(135deg, rgba(255, 230, 100, 0.1) 0%, rgba(255, 230, 100, 0.02) 100%),
     rgba(255, 255, 255, 0.02);
@@ -294,7 +283,6 @@ h1, h2 {
 
 #game-complete h2 {
   color: #ffea70;
-  text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
 }
 
 /* Buttons */
@@ -313,7 +301,7 @@ h1, h2 {
   cursor: pointer;
   pointer-events: all;
   transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 #complete-retry-btn {
@@ -325,7 +313,6 @@ h1, h2 {
 #retry-btn:hover,
 #complete-retry-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(92, 255, 120, 0.2);
   filter: brightness(1.1);
 }
 
@@ -337,11 +324,11 @@ h1, h2 {
 /* Animations */
 @keyframes glassPulseRed {
   0%, 100% {
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 124, 107, 0.4);
   }
   50% {
-    box-shadow: 0 8px 40px 0 rgba(255, 95, 87, 0.25);
     background: rgba(255, 95, 87, 0.12);
+    border-color: rgba(255, 124, 107, 0.8);
   }
 }
 
@@ -375,5 +362,97 @@ h1, h2 {
 
   h1, h2 {
     font-size: 2.2rem;
+  }
+}
+
+/* Cheat Console Styles */
+#cheat-console {
+  position: fixed;
+  inset: 0;
+  display: flex; /* Will be toggled to flex/none in JS */
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.console-shell {
+  position: relative;
+  width: min(94vw, 560px);
+  padding: 24px 28px 28px;
+  border: 1px solid var(--glass-border);
+  border-radius: 32px;
+  background: 
+    linear-gradient(135deg, rgba(92, 255, 120, 0.1) 0%, rgba(92, 255, 120, 0.02) 100%),
+    rgba(2, 6, 4, 0.95);
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+  pointer-events: all;
+  animation: consolePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.console-kicker {
+  margin: 0 0 16px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--font-muted);
+}
+
+#console-log {
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: "JetBrains Mono", "Courier New", monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--font-bright);
+  margin-bottom: 18px;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--font-muted) transparent;
+}
+
+#console-log div {
+  margin-bottom: 6px;
+}
+
+.console-input-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(92, 255, 120, 0.2);
+  border-radius: 14px;
+}
+
+.console-prompt {
+  font-family: monospace;
+  font-weight: 900;
+  font-size: 1rem;
+  color: var(--font-main);
+}
+
+#console-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  outline: none;
+  letter-spacing: 0.05em;
+}
+
+@keyframes consolePop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
   }
 }

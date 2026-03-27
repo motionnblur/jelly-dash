@@ -20,6 +20,20 @@ export class UIManager {
     this.rocketValueEl = document.getElementById("rocket-value");
     this.rocketFillEl = document.getElementById("rocket-fill");
     this.rocketPanelEl = document.querySelector(".rocket-panel");
+    
+    // Cheat Console
+    this.consoleEl = document.getElementById("cheat-console");
+    this.consoleInputEl = document.getElementById("console-input");
+    this.consoleLogEl = document.getElementById("console-log");
+    this.consoleBooted = false;
+
+    if (this.consoleInputEl) {
+      this.consoleInputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          this.handleConsoleInput();
+        }
+      });
+    }
 
     if (this.retryBtn) {
       this.retryBtn.addEventListener("click", () => {
@@ -132,6 +146,38 @@ export class UIManager {
         this.loadingEl = null;
       }, 500);
     }
+  }
+
+  handleConsoleInput() {
+    const input = this.consoleInputEl.value.trim();
+    if (input) {
+      this.logToConsole(`> ${input}`);
+      // Dispatch custom event for Engine to handle commands
+      const event = new CustomEvent("cheat-command", { detail: input });
+      window.dispatchEvent(event);
+      this.consoleInputEl.value = "";
+    }
+  }
+
+  toggleConsole() {
+    if (!this.consoleEl) return;
+    const isHidden = this.consoleEl.style.display === "none";
+    this.consoleEl.style.display = isHidden ? "flex" : "none";
+    if (isHidden) {
+      this.consoleInputEl.focus();
+      if (!this.consoleBooted) {
+        this.logToConsole("Terminal online. Standing by for command.");
+        this.consoleBooted = true;
+      }
+    }
+  }
+
+  logToConsole(message) {
+    if (!this.consoleLogEl) return;
+    const div = document.createElement("div");
+    div.innerText = message;
+    this.consoleLogEl.appendChild(div);
+    this.consoleLogEl.scrollTop = this.consoleLogEl.scrollHeight;
   }
 }
 

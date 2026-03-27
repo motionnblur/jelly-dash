@@ -134,8 +134,6 @@ async function init() {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(SKY_COLOR, 1);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.body.appendChild(renderer.domElement);
 
   clock = new THREE.Clock();
@@ -144,13 +142,6 @@ async function init() {
 
   const sun = new THREE.DirectionalLight(0xbcdcff, 1.25);
   sun.position.set(12, 28, 16);
-  sun.castShadow = true;
-  sun.shadow.mapSize.width = 2048;
-  sun.shadow.mapSize.height = 2048;
-  sun.shadow.camera.left = -40;
-  sun.shadow.camera.right = 40;
-  sun.shadow.camera.top = 40;
-  sun.shadow.camera.bottom = -40;
   scene.add(sun);
 
   const rimLight = new THREE.PointLight(0x7dd3fc, 0.8, 42);
@@ -203,10 +194,25 @@ async function init() {
 }
 
 function onKeyDown(event) {
+  if (event.code === "F1") {
+    event.preventDefault();
+    uiManager.toggleConsole();
+    return;
+  }
+
+  // Ignore game input if typing in an input field
+  if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
+    return;
+  }
+
   keys[event.code] = true;
 }
 
 function onKeyUp(event) {
+  if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
+    keys[event.code] = false; // Still release keys to be safe
+    return;
+  }
   keys[event.code] = false;
 }
 
@@ -273,8 +279,6 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
   mesh.rotation.y = Math.PI / 6;
-  mesh.castShadow = !options.isFinal;
-  mesh.receiveShadow = true;
 
   const rim = new THREE.LineSegments(
     new THREE.EdgesGeometry(geometry),
@@ -400,7 +404,6 @@ function createPlayer() {
 
   player = new THREE.Mesh(geometry, material);
   player.position.set(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z);
-  player.castShadow = true;
   scene.add(player);
 
   const playerDesc = RAPIER.RigidBodyDesc.dynamic()
