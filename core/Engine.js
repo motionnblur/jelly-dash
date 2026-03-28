@@ -1529,6 +1529,32 @@ function updateCamera(targetPosition) {
   }
 }
 
+function clampPlayerToViewX() {
+  if (!playerBody) return;
+  const translation = playerBody.translation();
+  const zDist = camera.position.z - translation.z;
+  const halfFovRad = (camera.fov / 2) * (Math.PI / 180);
+  const halfWidth = Math.tan(halfFovRad) * camera.aspect * zDist;
+  const margin = 0.5;
+  const minX = camera.position.x - halfWidth + margin;
+  const maxX = camera.position.x + halfWidth - margin;
+
+  if (translation.x < minX || translation.x > maxX) {
+    const clampedX = Math.max(minX, Math.min(maxX, translation.x));
+    playerBody.setTranslation(
+      { x: clampedX, y: translation.y, z: translation.z },
+      true,
+    );
+    const vel = playerBody.linvel();
+    if (
+      (translation.x < minX && vel.x < 0) ||
+      (translation.x > maxX && vel.x > 0)
+    ) {
+      playerBody.setLinvel({ x: 0, y: vel.y, z: vel.z }, true);
+    }
+  }
+}
+
 function updateTransition(delta) {
   if (!levelState.isTransitioning) {
     return;
@@ -1678,6 +1704,7 @@ function updateFrame(delta) {
 
   world.step();
   luaRuntime.callFunction("onUpdate", delta);
+  clampPlayerToViewX();
   const snapshot = getPlayerSnapshot();
   if (!snapshot) {
     return;
