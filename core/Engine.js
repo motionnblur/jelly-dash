@@ -184,6 +184,11 @@ function getPlayerSnapshot() {
   const isFinalHit =
     !!hit && !!finalPlatform && hit.collider.handle === finalPlatform.collider.handle;
 
+  const pendingHealthRestore = playerState.pendingHealthRestore;
+  const pendingRocketFuel = playerState.pendingRocketFuel;
+  playerState.pendingHealthRestore = 0;
+  playerState.pendingRocketFuel = 0;
+
   return {
     translation: { x: translation.x, y: translation.y, z: translation.z },
     velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
@@ -193,6 +198,14 @@ function getPlayerSnapshot() {
     isTransitioning: levelState.isTransitioning,
     isGameComplete: levelState.isGameComplete,
     isGameOver: playerState.isGameOver,
+    pendingHealthRestore,
+    pendingRocketFuel,
+    keys: {
+      left:  !!(keys["KeyA"] || keys["ArrowLeft"]),
+      right: !!(keys["KeyD"] || keys["ArrowRight"]),
+      jump:  !!keys["Space"],
+      boost: !!(keys["ShiftLeft"] || keys["ShiftRight"]),
+    },
   };
 }
 
@@ -423,16 +436,6 @@ async function init() {
           options = {},
         ) => spawnParticles(x, y, z, color, count, speedScale, options),
         playImpactSound: () => impactSoundController?.play(),
-        consumePendingHealthRestore: () => {
-          const v = playerState.pendingHealthRestore;
-          playerState.pendingHealthRestore = 0;
-          return v;
-        },
-        consumePendingRocketFuel: () => {
-          const v = playerState.pendingRocketFuel;
-          playerState.pendingRocketFuel = 0;
-          return v;
-        },
         triggerLandingCameraEffect: (airborneTime, impactSpeed) =>
           triggerLandingCameraEffect(airborneTime, impactSpeed),
         syncCollider: (force = false) => syncPlayerCollider(force),

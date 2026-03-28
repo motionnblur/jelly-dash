@@ -24,48 +24,23 @@ local function clamp(value, minValue, maxValue)
     return value
 end
 
-local function copyVector(vector)
-    return {
-        x = vector.x or 0,
-        y = vector.y or 0,
-        z = vector.z or 0,
-    }
-end
-
+-- Writes jelly scale directly into state.jellyScale to avoid table allocation
 local function computeJellyScale(state, velocity, isGrounded)
-    local scaleY = 1.0
-    local scaleXZ = 1.0
+    local scaleY, scaleXZ
 
     if not isGrounded then
         local stretch = math.abs(velocity.y or 0) * 0.025
-        scaleY = 1.0 + stretch
-        scaleXZ = 1.0 - stretch * 0.5
+        scaleY  = (1.0 + stretch) * state.gelMass
+        scaleXZ = (1.0 - stretch * 0.5) * state.gelMass
     else
         local speedFactor = math.abs(velocity.x or 0) * 0.02
-        scaleXZ = 1.0 + speedFactor
-        scaleY = 1.0 - speedFactor * 0.2
+        scaleXZ = (1.0 + speedFactor) * state.gelMass
+        scaleY  = (1.0 - speedFactor * 0.2) * state.gelMass
     end
 
-    scaleY = scaleY * state.gelMass
-    scaleXZ = scaleXZ * state.gelMass
-
-    return {
-        x = scaleXZ,
-        y = scaleY,
-        z = scaleXZ,
-    }
-end
-
-local function hasInput(code)
-    return game.isKeyDown and game.isKeyDown(code)
-end
-
-local function random()
-    if game.random then
-        return game.random()
-    end
-
-    return math.random()
+    state.jellyScale.x = scaleXZ
+    state.jellyScale.y = scaleY
+    state.jellyScale.z = scaleXZ
 end
 
 local function spawnParticles(translation, color, count, speedScale, options)
@@ -132,22 +107,28 @@ function Movement.resetState(state)
 end
 
 function Movement.update(state, runtime, delta)
-    -- Consume pending health restore from pickups
-    if game.player and game.player.consumePendingHealthRestore then
-        local restore = game.player.consumePendingHealthRestore()
-        if restore > 0 then
-            state.gelMass = math.min(1.0, state.gelMass + restore)
-        end
+    -- Consume pending health restore from pickups (now bundled in snapshot)
+    local restore = runtime.pendingHealthRestore or 0
+    if restore > 0 then
+        state.gelMass = math.min(1.0, state.gelMass + restore)
     end
 
     local velocity = runtime.velocity or { x = 0, y = 0, z = 0 }
     local translation = runtime.translation or { x = 0, y = 0, z = 0 }
     local isGrounded = runtime.isGrounded and true or false
+    local rkeys = runtime.keys or {}
 
     state.jellyTime = state.jellyTime + delta
-    state.pendingVelocity = copyVector(velocity)
-    state.jellyVelocity = copyVector(velocity)
-    state.jellyScale = computeJellyScale(state, velocity, isGrounded)
+
+    -- Mutate existing tables in place instead of allocating new ones
+    state.pendingVelocity.x = velocity.x or 0
+    state.pendingVelocity.y = velocity.y or 0
+    state.pendingVelocity.z = velocity.z or 0
+    state.jellyVelocity.x = velocity.x or 0
+    state.jellyVelocity.y = velocity.y or 0
+    state.jellyVelocity.z = velocity.z or 0
+
+    computeJellyScale(state, velocity, isGrounded)
     state.jellyTilt = (velocity.x or 0) * -0.05
     state.jellyImpact = state.lastLandingImpactSpeed
 
@@ -203,15 +184,15 @@ function Movement.update(state, runtime, delta)
     end
 
     local moveX = 0
-    if hasInput("KeyA") or hasInput("ArrowLeft") then
+    if rkeys.left then
         moveX = moveX - config.playerSpeed
     end
-    if hasInput("KeyD") or hasInput("ArrowRight") then
+    if rkeys.right then
         moveX = moveX + config.playerSpeed
     end
 
-    local jumpHeld = hasInput("Space")
-    local shiftPressed = hasInput("ShiftLeft") or hasInput("ShiftRight")
+    local jumpHeld = rkeys.jump
+    local shiftPressed = rkeys.boost
     local canJump = isGrounded or state.groundedCoyoteTimer > 0
 
     if isGrounded then
@@ -262,7 +243,7 @@ function Movement.update(state, runtime, delta)
                 state.walkDistanceAccumulator - config.walkStepDistance
             local gelMass = spawnParticles(
                 {
-                    x = translation.x + ((random() - 0.5) * 0.35),
+                    x = translation.x + ((math.random() - 0.5) * 0.35),
                     y = translation.y - 0.48,
                     z = translation.z,
                 },

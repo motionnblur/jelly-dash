@@ -5,6 +5,7 @@ export class LuaRuntime {
     this.factory = new LuaFactory();
     this.lua = null;
     this.isReady = false;
+    this._fnCache = {};
   }
 
   async init(globals = {}) {
@@ -38,7 +39,13 @@ export class LuaRuntime {
 
   callFunction(name, ...args) {
     if (!this.isReady || !this.lua) return;
-    const fn = this.lua.global.get(name);
+    let fn = this._fnCache[name];
+    if (!fn) {
+      fn = this.lua.global.get(name);
+      if (typeof fn === "function") {
+        this._fnCache[name] = fn;
+      }
+    }
     if (typeof fn === "function") {
       try {
         return fn(...args);

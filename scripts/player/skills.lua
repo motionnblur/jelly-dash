@@ -10,22 +10,10 @@ local config = {
     maxRiseSpeed = 10.0,
 }
 
-local function hasInput(code)
-    return game.isKeyDown and game.isKeyDown(code)
-end
-
-local function random()
-    if game.random then
-        return game.random()
-    end
-
-    return math.random()
-end
-
 local function spawnParticles(translation)
     if game.player and game.player.spawnParticles then
         game.player.spawnParticles(
-            translation.x + ((random() - 0.5) * 1.2),
+            translation.x + ((math.random() - 0.5) * 1.2),
             translation.y - 0.5,
             translation.z,
             0xff4433,
@@ -55,12 +43,10 @@ function Skills.resetState(state)
 end
 
 function Skills.update(state, runtime, delta)
-    -- Consume pending rocket fuel from pickups
-    if game.player and game.player.consumePendingRocketFuel then
-        local fuel = game.player.consumePendingRocketFuel()
-        if fuel > 0 then
-            state.rocketLevel = math.min(1.0, state.rocketLevel + fuel)
-        end
+    -- Consume pending rocket fuel from pickups (now bundled in snapshot)
+    local fuel = runtime.pendingRocketFuel or 0
+    if fuel > 0 then
+        state.rocketLevel = math.min(1.0, state.rocketLevel + fuel)
     end
 
     if runtime.isGameOver or runtime.isTransitioning or runtime.isGameComplete then
@@ -68,14 +54,15 @@ function Skills.update(state, runtime, delta)
         return
     end
 
-    local shiftPressed = hasInput("ShiftLeft") or hasInput("ShiftRight")
+    local rkeys = runtime.keys or {}
+    local shiftPressed = rkeys.boost
     local translation = runtime.translation or { x = 0, y = 0, z = 0 }
     local nextVelocity = state.pendingVelocity or { x = 0, y = 0, z = 0 }
     local hasFuel = state.rocketLevel > 0
 
     if shiftPressed and hasFuel then
         if not state.isRocketActive then
-            state.rocketSpinBaseDirection = random() < 0.5 and 1 or -1
+            state.rocketSpinBaseDirection = math.random() < 0.5 and 1 or -1
         end
 
         state.isRocketActive = true
@@ -97,7 +84,7 @@ function Skills.update(state, runtime, delta)
             (nextVelocity.y or 0) + config.thrust
         )
 
-        if random() < 0.3 then
+        if math.random() < 0.3 then
             spawnParticles(translation)
         end
     else
@@ -113,8 +100,8 @@ function Skills.update(state, runtime, delta)
 
     if state.isRocketActive then
         local horizontalMove =
-            ((hasInput("KeyD") or hasInput("ArrowRight")) and 1 or 0)
-            - ((hasInput("KeyA") or hasInput("ArrowLeft")) and 1 or 0)
+            (rkeys.right and 1 or 0)
+            - (rkeys.left and 1 or 0)
         local spinSpeed = 10.0 + math.abs(horizontalMove) * 12.0
         local spinDirection = horizontalMove ~= 0 and -horizontalMove
             or state.rocketSpinBaseDirection

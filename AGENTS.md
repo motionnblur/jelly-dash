@@ -256,6 +256,7 @@ Use these when validating layout generation or progression through Playwright or
   - options UI wiring: `initOptionsUI`
   - `rebuildCurrentLevelPlatforms()` — clears and recreates all platforms from `levelState.currentProfile.layout` without resetting the player; used by the level editor
   - `levelEditorRef` — holds the return value of `initLevelEditor`; its `tick()` is called every frame when the editor is open to keep the orbital camera updated
+  - `getPlayerSnapshot()` — returns the per-frame runtime snapshot consumed by Lua; includes `keys: { left, right, jump, boost }` (pre-computed booleans from the JS `keys` map) and `pendingHealthRestore` / `pendingRocketFuel` (consumed and zeroed here); Lua reads these fields directly from the snapshot instead of making separate bridge calls
 - `editor/LevelEditor.js`
   - in-game level editor; initialized in `init()` and receives live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
   - toggled open/closed by `#editor-fab`; sets `gameplayState.isEditorOpen` and `gameplayState.isPaused` when open
@@ -280,6 +281,7 @@ Use these when validating layout generation or progression through Playwright or
   - **SAVE button** (`#editor-export-btn`): POSTs the full profile object (`level`, `isRespite`, `label`, `estimatedDrain`, `layout`) to `/api/save-level`; before serializing, calls `flushPropertiesToDef()` to capture any uncommitted input values (typed but not yet blurred); on success shows `✓ SAVED`, on failure shows `✗ FAILED`
 - `core/LuaRuntime.js`
   - Wasmoon wrapper
+  - `callFunction(name, ...args)` caches Lua global function references in `_fnCache` after the first lookup — avoid calling `lua.global.get(name)` every frame for hot paths like `onUpdate`
 - `ui/UIManager.js`
   - HUD updates and overlay visibility
   - minimap rendering (`resizeMinimap`, `updateMinimap`) from current route layout + live player position
@@ -317,9 +319,10 @@ Use these when validating layout generation or progression through Playwright or
   - base-world creation only
 - `scripts/player/main.lua`
   - authoritative player loader for the player module folder
+  - `_applyBuf` — module-level pre-allocated table (with nested `velocity`, `jelly.velocity`, `jelly.scale` tables) reused every frame by `applyState()`; fields are mutated in-place to avoid per-frame Lua table allocation
 - `scripts/player/`
-  - `movement.lua`: traversal, jump, landing, drain, and fail-state logic
-  - `skills.lua`: rocket thrust, fuel, and spin logic
+  - `movement.lua`: traversal, jump, landing, drain, and fail-state logic; reads input from `runtime.keys` (pre-computed in snapshot) and pickup restores from `runtime.pendingHealthRestore`; uses `math.random()` natively — no JS bridge calls for these
+  - `skills.lua`: rocket thrust, fuel, and spin logic; reads input from `runtime.keys` and pickup fuel from `runtime.pendingRocketFuel`; uses `math.random()` natively
   - `cheat.lua`: terminal command handling
 - `scripts/shared/config.lua`
   - mirrors movement / economy / detection / rocket config into Lua
@@ -380,6 +383,15 @@ Adjust these in `configs/player-config.json`:
 - update `playerState.gelMass` and let the JS bridge rebuild the collider
 - keep `scripts/player/main.lua`, the `scripts/player/` modules, and the `game.player.*` bridge methods in sync when adding new player-state fields
 
+### Lua / JS Bridge Performance Rules
+The Lua integration is optimized to minimize JS↔WASM boundary crossings per frame. Follow these rules when modifying or extending the Lua player scripts:
+- **Do not add new `game.*` calls inside `Movement.update` or `Skills.update`** unless strictly necessary. Each call crosses the JS↔WASM boundary at 60 fps.
+- **Input reads must come from `runtime.keys`**, not `game.isKeyDown(code)`. Key state is pre-computed once per frame in `getPlayerSnapshot()` in `core/Engine.js` as `{ left, right, jump, boost }`. If you need a new input, add it there and read it from the snapshot.
+- **Pickup / one-shot values must be bundled into the snapshot**. Do not add new `game.player.consumePending*()` bridge methods. Instead, add the value to `getPlayerSnapshot()`, zero it out there, and read it from `runtime.*` in Lua.
+- **Do not use `game.random()`** — use Lua's `math.random()` directly.
+- **Do not allocate new Lua tables inside `applyState()`** — update `_applyBuf` fields in-place. If you add a new field to the apply payload, add it to `_applyBuf` at declaration time in `main.lua`.
+- **`LuaRuntime.callFunction` caches function references** — if you add a new globally-exposed Lua function called from JS, it will be cached automatically after the first call. Do not call `lua.global.get()` manually for hot paths.
+
 ### If You Debug Progression
 Look at:
 - `buildLevelProfilesFromFiles()` in `core/Engine.js` — level loading
@@ -422,4 +434,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua)*
