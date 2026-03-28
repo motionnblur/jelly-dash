@@ -78,7 +78,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - `WALK_GEL_COST = 0.018`
   - one walking drain event fires every `WALK_STEP_DISTANCE = 2.0` world units while grounded and moving
   - effective drain rate: `0.018 / 2.0 = 0.009` gel per world unit walked
-- Hard landings now also chip gel based on impact speed, and that hurt event triggers `assets/sounds/impact-sound.mp3`.
+- Hard landings chip gel based on **relative** impact speed (player velocity minus the stood-on platform's vertical velocity), and that hurt event triggers `assets/sounds/impact-sound.mp3`. This ensures fast-bobbing platforms do not inflict false impact damage.
 - Rocket usage incurs a continuous systemic cost: `ROCKET_GEL_COST = 0.005` (0.5 HP per second while active).
 - Level generation is tuned around a target maximum expected level drain:
   - `MAX_SAFE_LEVEL_DRAIN = 0.90`
@@ -97,6 +97,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 - Platforms sink slightly while stepped on and lerp back when cleared.
 - From level 6 onward, some non-final platforms also oscillate vertically in a deterministic loop.
 - Some platforms also oscillate **horizontally** (`swingAmplitude`, `swingSpeed`). When the player is standing on a swinging platform, its X velocity is computed each frame (`deltaX / delta`) and added to the player's linvel so the player is carried along. This is handled in `updatePlatforms()` in `core/Engine.js`.
+- Each platform tracks its vertical velocity (`platform.lastVelY`, computed as `deltaY / delta` each frame in `updatePlatforms`). This velocity is passed to Lua via `groundPlatformVelY` in the player snapshot so landing impact damage uses relative velocity rather than raw player velocity.
 - The final platform is visually distinct:
   - gold material
   - ring/beacon decoration
@@ -268,7 +269,7 @@ Use these when validating layout generation or progression through Playwright or
   - `clampPlayerToViewX()` — called every frame after physics step and Lua update; constrains the player's x position to the camera's visible frustum with a 0.5 world-unit inset margin, zeroing x velocity on contact
   - `rebuildCurrentLevelPlatforms()` — clears and recreates all platforms from `levelState.currentProfile.layout` without resetting the player; used by the level editor
   - `levelEditorRef` — holds the return value of `initLevelEditor`; its `tick()` is called every frame when the editor is open to keep the orbital camera updated
-  - `getPlayerSnapshot()` — returns the per-frame runtime snapshot consumed by Lua; includes `keys: { left, right, jump, boost }` (pre-computed booleans from the JS `keys` map) and `pendingHealthRestore` / `pendingRocketFuel` (consumed and zeroed here); Lua reads these fields directly from the snapshot instead of making separate bridge calls
+  - `getPlayerSnapshot()` — returns the per-frame runtime snapshot consumed by Lua; includes `keys: { left, right, jump, boost }` (pre-computed booleans from the JS `keys` map), `pendingHealthRestore` / `pendingRocketFuel` (consumed and zeroed here), and `groundPlatformVelY` (vertical velocity of the stood-on platform, used for relative impact damage); Lua reads these fields directly from the snapshot instead of making separate bridge calls
 - `editor/LevelEditor.js`
   - in-game level editor; development-only, lazy-loaded on the first `#editor-fab` click in dev, then initialized with live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
   - `ensureEditorDOM()` injects the editor panel and stop-test button on demand; `index.html` no longer contains static editor markup
@@ -449,4 +450,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 29, 2026 (variable-timestep physics fix, x-axis view boundary clamp, portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, development-only in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, deferred background music loading, production editor stripping, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua)*
+*Last Updated: March 29, 2026 (variable-timestep physics fix, x-axis view boundary clamp, portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, development-only in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, deferred background music loading, production editor stripping, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua, relative-velocity landing impact fix for bobbing platforms)*

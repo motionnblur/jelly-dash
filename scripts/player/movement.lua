@@ -149,7 +149,8 @@ function Movement.update(state, runtime, delta)
 
     if isGrounded and not wasGrounded then
         state.lastLandingAirTime = state.airborneTime
-        state.lastLandingImpactSpeed = math.abs(state.lastVelY or 0)
+        local platformVelY = runtime.groundPlatformVelY or 0
+        state.lastLandingImpactSpeed = math.abs((state.lastVelY or 0) - platformVelY)
         triggerLandingCameraEffect(state)
 
         if state.spawnLandingGrace then

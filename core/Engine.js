@@ -196,11 +196,23 @@ function getPlayerSnapshot() {
   playerState.pendingHealthRestore = 0;
   playerState.pendingRocketFuel = 0;
 
+  let groundPlatformVelY = 0;
+  if (hit) {
+    const hitHandle = hit.collider.handle;
+    for (const platform of platforms) {
+      if (platform.collider.handle === hitHandle) {
+        groundPlatformVelY = platform.lastVelY || 0;
+        break;
+      }
+    }
+  }
+
   return {
     translation: { x: translation.x, y: translation.y, z: translation.z },
     velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
     isGrounded: !!hit,
     groundHitHandle: hit ? hit.collider.handle : null,
+    groundPlatformVelY,
     hitFinal: isFinalHit,
     isTransitioning: levelState.isTransitioning,
     isGameComplete: levelState.isGameComplete,
@@ -942,6 +954,8 @@ function createPlatform(x, y, z, w, h, d, color, options = {}) {
     hitsToBreak,
     hitsRemaining: hitsToBreak,
     wasSteppedOn: false,
+    steppedOnGrace: 0,
+    lastVelY: 0,
     shape: shapeSpec.shape,
     rotationY,
     definition: options.definition ?? null,
@@ -1595,8 +1609,16 @@ function updatePlatforms(groundHitHandle, delta) {
   const platformsToDestroy = [];
 
   for (const platform of platforms) {
-    const isSteppedOn =
+    const isRayHit =
       groundHitHandle !== null && groundHitHandle === platform.collider.handle;
+
+    if (isRayHit) {
+      platform.steppedOnGrace = 0.1;
+    } else if (platform.steppedOnGrace > 0) {
+      platform.steppedOnGrace -= delta;
+    }
+
+    const isSteppedOn = isRayHit || platform.steppedOnGrace > 0;
     const wasSteppedOn = !!platform.wasSteppedOn;
 
     if (isSteppedOn && !wasSteppedOn && platform.isDestroyable && !platform.isFinal) {
@@ -1629,8 +1651,10 @@ function updatePlatforms(groundHitHandle, delta) {
       bobOffset;
     const alpha = isSteppedOn ? sinkSpeed : returnSpeed;
 
+    const prevY = platform.currentY;
     platform.currentY +=
       (targetY - platform.currentY) * alpha * Math.min(1, delta * 60);
+    platform.lastVelY = delta > 0 ? (platform.currentY - prevY) / delta : 0;
 
     const prevX = platform.currentX;
     const swingOffset =
