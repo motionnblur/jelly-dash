@@ -692,6 +692,7 @@ function createPickup(def) {
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(def.x, def.y, def.z);
+  mesh.rotation.y = def.rotationY ?? 0;
   scene.add(mesh);
   const pickup = { mesh, type: def.type, collected: false, def };
   pickups.push(pickup);
@@ -1510,7 +1511,7 @@ function updatePickups(playerTranslation) {
   for (const pickup of pickups) {
     if (pickup.collected) continue;
     pickup.mesh.position.y = pickup.def.y + Math.sin(time * 3.0 + pickup.def.x) * 0.12;
-    pickup.mesh.rotation.y = time * 1.8;
+    pickup.mesh.rotation.y = time * 1.8 + (pickup.def.rotationY ?? 0);
 
     if (!playerTranslation || playerState.isGameOver || levelState.isTransitioning || levelState.isGameComplete) continue;
     const dx = pickup.def.x - playerTranslation.x;

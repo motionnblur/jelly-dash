@@ -39,13 +39,14 @@ function buildGizmo(scene) {
   group.renderOrder = 999;
   scene.add(group);
 
-  const mats   = {};
-  const meshes = [];
+  const translateMats = {};
+  const translateMeshes = [];
+  const rotateMeshes = [];
 
   ["x", "y", "z"].forEach((axis) => {
     const color = AXIS_COLORS[axis];
     const mat   = new THREE.MeshBasicMaterial({ color, depthTest: false, toneMapped: false });
-    mats[axis]  = mat;
+    translateMats[axis]  = mat;
 
     const axisGroup = new THREE.Group();
     axisGroup.renderOrder = 999;
@@ -54,15 +55,17 @@ function buildGizmo(scene) {
     shaft.position.y = 0.55;
     shaft.renderOrder = 999;
     shaft.userData.gizmoAxis = axis;
+    shaft.userData.gizmoMode = "translate";
     axisGroup.add(shaft);
-    meshes.push(shaft);
+    translateMeshes.push(shaft);
 
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.28, 8), mat);
     tip.position.y = 1.24;
     tip.renderOrder = 999;
     tip.userData.gizmoAxis = axis;
+    tip.userData.gizmoMode = "translate";
     axisGroup.add(tip);
-    meshes.push(tip);
+    translateMeshes.push(tip);
 
     if (axis === "x") axisGroup.rotation.z = -Math.PI / 2;
     if (axis === "z") axisGroup.rotation.x =  Math.PI / 2;
@@ -70,7 +73,31 @@ function buildGizmo(scene) {
     group.add(axisGroup);
   });
 
-  return { group, mats, meshes };
+  const rotateMat = new THREE.MeshBasicMaterial({
+    color: AXIS_COLORS.y,
+    depthTest: false,
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const rotateRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.45, 0.055, 12, 96),
+    rotateMat,
+  );
+  rotateRing.renderOrder = 999;
+  rotateRing.rotation.x = Math.PI / 2; // Y-axis ring
+  rotateRing.userData.gizmoAxis = "y";
+  rotateRing.userData.gizmoMode = "rotate";
+  group.add(rotateRing);
+  rotateMeshes.push(rotateRing);
+
+  return {
+    group,
+    translateMats,
+    rotateMat,
+    translateMeshes,
+    rotateMeshes,
+  };
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -169,18 +196,27 @@ export function initLevelEditor({
 
   // ── Gizmo drag ─────────────────────────────────────────────────────────────
   const drag = {
-    active: false, axis: null,
+    active: false, axis: null, mode: "translate",
     plane: new THREE.Plane(),
     planeHit: new THREE.Vector3(),
     startPos: new THREE.Vector3(),
+    startRotationY: 0,
+    startAngle: 0,
   };
   let hoveredAxis = null;
+  let transformMode = "translate"; // "translate" | "rotate"
 
   const raycaster = new THREE.Raycaster();
   const mouse     = new THREE.Vector2();
 
   // ── Build gizmo ────────────────────────────────────────────────────────────
-  const { group: gizmo, mats: gizmoMats, meshes: gizmoMeshes } = buildGizmo(scene);
+  const {
+    group: gizmo,
+    translateMats: gizmoTranslateMats,
+    rotateMat: gizmoRotateMat,
+    translateMeshes: gizmoTranslateMeshes,
+    rotateMeshes: gizmoRotateMeshes,
+  } = buildGizmo(scene);
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
   const fab              = document.getElementById("editor-fab");
@@ -373,14 +409,38 @@ export function initLevelEditor({
   }
 
   function onEditorKeyDown(e) {
-    // Don't intercept browser undo inside text inputs
-    if (document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA") return;
-    if (e.ctrlKey && e.key === "z") {
+    // Don't intercept shortcuts while typing in form controls.
+    const active = document.activeElement;
+    if (active?.tagName === "INPUT" ||
+        active?.tagName === "TEXTAREA" ||
+        active?.tagName === "SELECT" ||
+        active?.isContentEditable) return;
+
+    const modKey = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+
+    if (modKey && !e.shiftKey && key === "z") {
       e.preventDefault();
       undo();
+      return;
     }
-    if (e.key === "r" || e.key === "R") {
+    if (modKey && !e.shiftKey && key === "d") {
+      e.preventDefault();
+      duplicateSelectedObject();
+      return;
+    }
+    if (e.key === "Delete") {
+      e.preventDefault();
+      deleteSelectedObject();
+      return;
+    }
+    if (key === "q") {
+      e.preventDefault();
+      toggleTransformMode();
+      placeGizmo();
+      return;
+    }
+    if (key === "r") {
       e.preventDefault();
       resetOrbitCamera();
     }
@@ -534,7 +594,29 @@ export function initLevelEditor({
       gizmo.visible = false; return;
     }
     gizmo.visible = true;
+    applyGizmoModeVisibility();
     scaleGizmo();
+  }
+
+  function applyGizmoModeVisibility() {
+    const isTranslate = transformMode === "translate";
+    gizmoTranslateMeshes.forEach((mesh) => { mesh.visible = isTranslate; });
+    gizmoRotateMeshes.forEach((mesh) => { mesh.visible = !isTranslate; });
+
+    hoveredAxis = null;
+    ["x", "y", "z"].forEach((axis) => {
+      gizmoTranslateMats[axis]?.color.setHex(AXIS_COLORS[axis]);
+    });
+    gizmoRotateMat.color.setHex(AXIS_COLORS.y);
+  }
+
+  function toggleTransformMode() {
+    transformMode = transformMode === "translate" ? "rotate" : "translate";
+    applyGizmoModeVisibility();
+  }
+
+  function getActiveGizmoMeshes() {
+    return transformMode === "translate" ? gizmoTranslateMeshes : gizmoRotateMeshes;
   }
 
   function scaleGizmo() {
@@ -713,7 +795,7 @@ export function initLevelEditor({
     renderProperties();
   });
 
-  deleteBtn.addEventListener("click", () => {
+  function deleteSelectedObject() {
     if (selectedIndex < 0 || !levelState.currentProfile) return;
     if (selectedType === "pickup") {
       const pickupDefs = levelState.currentProfile.pickups;
@@ -742,7 +824,47 @@ export function initLevelEditor({
       renderPickupList();
       renderProperties();
     }
-  });
+  }
+
+  function duplicateSelectedObject() {
+    if (selectedIndex < 0 || !levelState.currentProfile) return;
+
+    if (selectedType === "pickup") {
+      const pickupDefs = levelState.currentProfile.pickups;
+      const src = pickupDefs?.[selectedIndex];
+      if (!src) return;
+      pushHistory();
+      const dup = {
+        ...src,
+        x: (src.x ?? 0) + 1.5,
+        y: (src.y ?? 0) + 1.0,
+        z: src.z ?? 0,
+      };
+      const insertIndex = selectedIndex + 1;
+      pickupDefs.splice(insertIndex, 0, dup);
+      rebuildCurrentLevelPlatforms();
+      selectPickup(insertIndex);
+      renderProperties();
+      return;
+    }
+
+    const layout = levelState.currentProfile.layout;
+    const src = layout[selectedIndex];
+    if (!src) return;
+    pushHistory();
+    const dup = JSON.parse(JSON.stringify(src));
+    dup.isFinal = false; // keep one canonical final platform in the level
+    dup.x = (src.x ?? 0) + 1.5;
+    dup.y = (src.y ?? 0) + 1.0;
+    dup.z = src.z ?? 0;
+    const insertIndex = src.isFinal ? selectedIndex : selectedIndex + 1;
+    layout.splice(insertIndex, 0, dup);
+    rebuildCurrentLevelPlatforms();
+    selectPlatform(insertIndex);
+    renderProperties();
+  }
+
+  deleteBtn.addEventListener("click", deleteSelectedObject);
 
   undoBtn?.addEventListener("click", undo);
 
@@ -758,6 +880,7 @@ export function initLevelEditor({
       x: last ? last.x + 1.5 : 1.5,
       y: last ? last.y + 1.5 : 4.0,
       z: 0,
+      rotationY: 0,
       type,
       amount: defaultAmount,
     };
@@ -850,6 +973,20 @@ export function initLevelEditor({
     return new THREE.Plane().setFromNormalAndCoplanarPoint(normal, origin);
   }
 
+  function makeRotatePlaneY() {
+    return new THREE.Plane().setFromNormalAndCoplanarPoint(
+      AXIS_VECTORS.y,
+      gizmo.position.clone(),
+    );
+  }
+
+  function normalizeAngleDelta(angle) {
+    let out = angle;
+    while (out > Math.PI) out -= Math.PI * 2;
+    while (out < -Math.PI) out += Math.PI * 2;
+    return out;
+  }
+
   function eventToMouse(e) {
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
@@ -870,19 +1007,32 @@ export function initLevelEditor({
     if (e.button === 0) {
       eventToMouse(e);
       raycaster.setFromCamera(mouse, camera);
-      const hits = raycaster.intersectObjects(gizmoMeshes, false);
+      const hits = raycaster.intersectObjects(getActiveGizmoMeshes(), false);
       if (hits.length > 0) {
-        pushHistory(); // snapshot before drag starts
         const axis  = hits[0].object.userData.gizmoAxis;
-        drag.active = true;
-        drag.axis   = axis;
-        drag.plane  = makeDragPlane(axis);
-        const hit   = rayPlaneHit(drag.plane);
-        if (hit) drag.planeHit.copy(hit);
+        const mode  = hits[0].object.userData.gizmoMode || "translate";
         const def = selectedType === "pickup"
           ? levelState.currentProfile?.pickups?.[selectedIndex]
           : levelState.currentProfile?.layout[selectedIndex];
-        if (def) drag.startPos.set(def.x, def.y, def.z);
+        if (!def) return;
+
+        pushHistory(); // snapshot before drag starts
+        drag.active = true;
+        drag.axis   = axis;
+        drag.mode   = mode;
+        if (mode === "rotate") {
+          drag.plane = makeRotatePlaneY();
+          const hit = rayPlaneHit(drag.plane);
+          drag.startAngle = hit
+            ? Math.atan2(hit.z - gizmo.position.z, hit.x - gizmo.position.x)
+            : 0;
+          drag.startRotationY = def.rotationY ?? 0;
+        } else {
+          drag.plane  = makeDragPlane(axis);
+          const hit   = rayPlaneHit(drag.plane);
+          if (hit) drag.planeHit.copy(hit);
+          drag.startPos.set(def.x, def.y, def.z);
+        }
         return;
       }
       orbit.dragging = true;
@@ -902,37 +1052,64 @@ export function initLevelEditor({
       raycaster.setFromCamera(mouse, camera);
       const hit = rayPlaneHit(drag.plane);
       if (hit) {
-        const movement = hit.clone().sub(drag.planeHit).dot(AXIS_VECTORS[drag.axis]);
-        if (selectedType === "pickup") {
-          const def = levelState.currentProfile?.pickups?.[selectedIndex];
-          if (def) {
-            def[drag.axis] = drag.startPos[drag.axis] + movement;
-            const pickup = pickups[selectedIndex];
-            if (pickup) pickup.mesh.position[drag.axis] = def[drag.axis];
-            gizmo.position[drag.axis] = def[drag.axis];
-            const el = document.getElementById(`p-${drag.axis}`);
-            if (el) el.value = def[drag.axis].toFixed(2);
-            const listItems = pickupListEl?.querySelectorAll(".ed-item-pos");
-            if (listItems?.[selectedIndex])
-              listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
+        if (drag.mode === "rotate") {
+          const nextAngle = Math.atan2(
+            hit.z - gizmo.position.z,
+            hit.x - gizmo.position.x,
+          );
+          const delta = normalizeAngleDelta(nextAngle - drag.startAngle);
+          const nextRotationY = drag.startRotationY + delta;
+
+          if (selectedType === "pickup") {
+            const def = levelState.currentProfile?.pickups?.[selectedIndex];
+            if (def) {
+              def.rotationY = nextRotationY;
+              const pickup = pickups[selectedIndex];
+              if (pickup) pickup.mesh.rotation.y = nextRotationY;
+            }
+          } else {
+            const def = levelState.currentProfile?.layout[selectedIndex];
+            if (def) {
+              def.rotationY = nextRotationY;
+              const platform = platforms[selectedIndex];
+              if (platform) platform.mesh.rotation.y = nextRotationY;
+              const rotEl = document.getElementById("p-rot");
+              if (rotEl) rotEl.value = ((nextRotationY * 180) / Math.PI).toFixed(1);
+            }
           }
         } else {
-          const def = levelState.currentProfile?.layout[selectedIndex];
-          if (def) {
-            def[drag.axis] = drag.startPos[drag.axis] + movement;
-            const platform = platforms[selectedIndex];
-            if (platform) {
-              platform.mesh.position[drag.axis] = def[drag.axis];
-              platform.body.setNextKinematicTranslation(platform.mesh.position);
-              if (drag.axis === "x") { platform.originalX = def.x; platform.currentX = def.x; }
-              if (drag.axis === "y") { platform.originalY = def.y; platform.currentY = def.y; }
+          const movement = hit.clone().sub(drag.planeHit).dot(AXIS_VECTORS[drag.axis]);
+          if (selectedType === "pickup") {
+            const def = levelState.currentProfile?.pickups?.[selectedIndex];
+            if (def) {
+              def[drag.axis] = drag.startPos[drag.axis] + movement;
+              const pickup = pickups[selectedIndex];
+              if (pickup) pickup.mesh.position[drag.axis] = def[drag.axis];
+              gizmo.position[drag.axis] = def[drag.axis];
+              const el = document.getElementById(`p-${drag.axis}`);
+              if (el) el.value = def[drag.axis].toFixed(2);
+              const listItems = pickupListEl?.querySelectorAll(".ed-item-pos");
+              if (listItems?.[selectedIndex])
+                listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
             }
-            gizmo.position[drag.axis] = def[drag.axis];
-            const el = document.getElementById(`p-${drag.axis}`);
-            if (el) el.value = def[drag.axis].toFixed(2);
-            const listItems = platformListEl.querySelectorAll(".ed-item-pos");
-            if (listItems[selectedIndex])
-              listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
+          } else {
+            const def = levelState.currentProfile?.layout[selectedIndex];
+            if (def) {
+              def[drag.axis] = drag.startPos[drag.axis] + movement;
+              const platform = platforms[selectedIndex];
+              if (platform) {
+                platform.mesh.position[drag.axis] = def[drag.axis];
+                platform.body.setNextKinematicTranslation(platform.mesh.position);
+                if (drag.axis === "x") { platform.originalX = def.x; platform.currentX = def.x; }
+                if (drag.axis === "y") { platform.originalY = def.y; platform.currentY = def.y; }
+              }
+              gizmo.position[drag.axis] = def[drag.axis];
+              const el = document.getElementById(`p-${drag.axis}`);
+              if (el) el.value = def[drag.axis].toFixed(2);
+              const listItems = platformListEl.querySelectorAll(".ed-item-pos");
+              if (listItems[selectedIndex])
+                listItems[selectedIndex].textContent = `(${def.x.toFixed(1)}, ${def.y.toFixed(1)})`;
+            }
           }
         }
       }
@@ -955,13 +1132,17 @@ export function initLevelEditor({
     if (gizmo.visible) {
       eventToMouse(e);
       raycaster.setFromCamera(mouse, camera);
-      const hits       = raycaster.intersectObjects(gizmoMeshes, false);
+      const hits       = raycaster.intersectObjects(getActiveGizmoMeshes(), false);
       const newHovered = hits.length > 0 ? hits[0].object.userData.gizmoAxis : null;
       if (newHovered !== hoveredAxis) {
         hoveredAxis = newHovered;
-        ["x", "y", "z"].forEach((a) => {
-          gizmoMats[a].color.setHex(hoveredAxis === a ? AXIS_HOVER : AXIS_COLORS[a]);
-        });
+        if (transformMode === "translate") {
+          ["x", "y", "z"].forEach((a) => {
+            gizmoTranslateMats[a].color.setHex(hoveredAxis === a ? AXIS_HOVER : AXIS_COLORS[a]);
+          });
+        } else {
+          gizmoRotateMat.color.setHex(hoveredAxis ? AXIS_HOVER : AXIS_COLORS.y);
+        }
       }
     }
   }
@@ -970,9 +1151,11 @@ export function initLevelEditor({
     orbit.dragging = false;
     orbit.panning  = false;
     if (drag.active) {
+      const didDrag = drag.mode;
       drag.active = false;
       drag.axis   = null;
-      rebuild(); // history was already pushed at drag start
+      drag.mode = "translate";
+      if (didDrag) rebuild(); // history was already pushed at drag start
     }
   }
 
@@ -986,7 +1169,7 @@ export function initLevelEditor({
     if (orbit.moved) return;
     eventToMouse(e);
     raycaster.setFromCamera(mouse, camera);
-    if (gizmo.visible && raycaster.intersectObjects(gizmoMeshes, false).length > 0) return;
+    if (gizmo.visible && raycaster.intersectObjects(getActiveGizmoMeshes(), false).length > 0) return;
 
     const platformMeshes = platforms.map((p) => p.mesh);
     const pickupMeshes   = pickups.map((pk) => pk.mesh);
