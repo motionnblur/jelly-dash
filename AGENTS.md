@@ -362,6 +362,12 @@ Adjust these in `configs/player-config.json`:
 - `rockets.refillRate`: How fast the fuel meter recovers.
 - `gelEconomy.rocketGelCost`: The health penalty for using rockets.
 
+### If You Want To Tune Camera X Tracking
+Adjust these in `configs/player-config.json`:
+- `camera.xFollowFactor`: How strongly the camera follows the player's X movement.
+- `camera.xFollowClamp`: Absolute left/right clamp for camera X tracking and X look target.
+- `camera.lookAtXFactor`: How strongly the camera look target follows the player's X movement before clamping.
+
 ### If You Change Player Scale Rules
 - do not manually resize the rigid body elsewhere
 - update `playerState.gelMass` and let the JS bridge rebuild the collider
@@ -409,4 +415,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, Ctrl+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, Ctrl+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*

@@ -90,6 +90,9 @@ const {
     spaceshipAltitudeThreshold: SPACESHIP_ALTITUDE_THRESHOLD,
   },
   camera: {
+    xFollowFactor: CAMERA_X_FOLLOW_FACTOR = 0.15,
+    xFollowClamp: CAMERA_X_FOLLOW_CLAMP = Infinity,
+    lookAtXFactor: CAMERA_LOOK_AT_X_FACTOR = 0.12,
     jumpShakeMax: JUMP_CAMERA_SHAKE_MAX,
     jumpShakeDecay: JUMP_CAMERA_SHAKE_DECAY,
     jumpShakeOffset: JUMP_CAMERA_SHAKE_OFFSET,
@@ -1366,12 +1369,21 @@ function sampleGroundHit(translation) {
 }
 
 function updateCamera(targetPosition) {
-  const targetCamX = targetPosition.x * 0.15;
+  const targetCamXRaw = targetPosition.x * CAMERA_X_FOLLOW_FACTOR;
+  const targetCamX = Math.max(
+    -CAMERA_X_FOLLOW_CLAMP,
+    Math.min(CAMERA_X_FOLLOW_CLAMP, targetCamXRaw),
+  );
   const targetCamY = targetPosition.y + 4.8;
+  const targetLookAtXRaw = targetPosition.x * CAMERA_LOOK_AT_X_FACTOR;
+  const targetLookAtX = Math.max(
+    -CAMERA_X_FOLLOW_CLAMP,
+    Math.min(CAMERA_X_FOLLOW_CLAMP, targetLookAtXRaw),
+  );
 
   camera.position.x += (targetCamX - camera.position.x) * 0.1;
   camera.position.y += (targetCamY - camera.position.y) * 0.1;
-  camera.lookAt(targetPosition.x * 0.12, targetPosition.y + 1.2, 0);
+  camera.lookAt(targetLookAtX, targetPosition.y + 1.2, 0);
 
   if (jumpCameraState.shake > 0) {
     const shake = jumpCameraState.shake * JUMP_CAMERA_SHAKE_OFFSET;

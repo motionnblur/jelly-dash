@@ -22,6 +22,9 @@
     "spaceshipAltitudeThreshold": 120
   },
   "camera": {
+    "xFollowFactor": 1.0,
+    "xFollowClamp": 2.4,
+    "lookAtXFactor": 0.25,
     "jumpShakeMax": 1,
     "jumpShakeDecay": 4.2,
     "jumpShakeOffset": 0.22,
