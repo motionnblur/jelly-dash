@@ -100,7 +100,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 
 ### 6. Level Flow
 - The game contains `LEVEL_COUNT = 50`.
-- Each level is loaded from a static JSON file (`assets/levels/level1.json` … `assets/levels/level50.json`) at startup via `import.meta.glob`.
+- Each level is loaded from a static JSON file (`configs/levels/level1.json` … `configs/levels/level50.json`) at startup via `import.meta.glob`.
 - Entering the final hex starts a short transition, then builds the next level.
 - When the final hex is touched, a win sound plays and the player's horizontal velocity is immediately zeroed every frame until the next level loads (vertical velocity is left intact for gravity).
 - Every new level resets:
@@ -135,8 +135,8 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 ### Overview
 Levels are stored as static JSON files rather than being generated at runtime.
 
-- **Location**: `assets/levels/level1.json` … `assets/levels/level50.json`
-- **Loader**: `buildLevelProfilesFromFiles(levelJsonModules)` in `core/Engine.js` reads all 50 files eagerly via `import.meta.glob("../assets/levels/level*.json", { eager: true, import: "default" })` and builds the `levelState.profiles` array in level order.
+- **Location**: `configs/levels/level1.json` … `configs/levels/level50.json`
+- **Loader**: `buildLevelProfilesFromFiles(levelJsonModules)` in `core/Engine.js` reads all 50 files eagerly via `import.meta.glob("../configs/levels/level*.json", { eager: true, import: "default" })` and builds the `levelState.profiles` array in level order.
 - **Generator script**: `tools/generate-levels.js` is a one-off Node.js ESM script that was used to produce the initial 50 JSON files using the original seeded math. Run `node tools/generate-levels.js` again if the seed constants or generator math change.
 
 ### Level Profile Schema
@@ -171,7 +171,7 @@ Each entry in `layout` is a platform definition:
 | `swingSpeed` | number | Horizontal pendulum frequency |
 
 ### Editing Levels
-Use the in-game level editor (FAB button, bottom-right). When done, click **SAVE** to write `levelN.json` directly to `assets/levels/` on disk. After saving, a full page reload (F5) picks up the changes — no dev server restart needed.
+Use the in-game level editor (FAB button, bottom-right). When done, click **SAVE** to write `levelN.json` directly to `configs/levels/` on disk. After saving, a full page reload (F5) picks up the changes — no dev server restart needed.
 
 ### What Makes Later Levels Harder
 Difficulty grows across the 50 levels via the stored layout data:
@@ -329,17 +329,17 @@ Use these when validating layout generation or progression through Playwright or
   - centralized player parameters (movement, drain costs, rockets, camera)
 - `configs/sound-config.json`
   - centralized sound volumes (keys: `backgroundMusic`, `rocket`, `jump`, `impact`, `win`)
-- `assets/levels/level1.json` … `assets/levels/level50.json`
+- `configs/levels/level1.json` … `configs/levels/level50.json`
   - static level data; each file is one profile object loaded eagerly at startup
 - `tools/generate-levels.js`
   - one-off Node.js ESM script that regenerates all 50 JSON files using the original seeded generator math; run with `node tools/generate-levels.js`
 - `vite.config.js`
-  - defines the `levelSaverPlugin` Vite dev plugin; adds a `POST /api/save-level` middleware that writes the POSTed profile JSON to `assets/levels/levelN.json` and invalidates the corresponding module in Vite's module graph so the next F5 serves fresh data; also sets `server.watch.ignored` for `assets/levels/**` to prevent HMR page reloads when level files change
+  - defines the `levelSaverPlugin` Vite dev plugin; adds a `POST /api/save-level` middleware that writes the POSTed profile JSON to `configs/levels/levelN.json` and invalidates the corresponding module in Vite's module graph so the next F5 serves fresh data; also sets `server.watch.ignored` for `configs/levels/**` to prevent HMR page reloads when level files change
 
 ## Developer Notes For Agents
 
 ### If You Want To Rebalance Difficulty
-- Edit individual level JSON files in `assets/levels/` using the in-game level editor and click **SAVE**
+- Edit individual level JSON files in `configs/levels/` using the in-game level editor and click **SAVE**
 - To rebalance gel drain economy, change `configs/player-config.json`: `gelEconomy.jumpCost`, `gelEconomy.walkCost`, `gelEconomy.walkStepDistance`
 - To regenerate all levels from scratch with different seeded parameters, edit `tools/generate-levels.js` constants and run `node tools/generate-levels.js`
 
@@ -347,7 +347,7 @@ Use these when validating layout generation or progression through Playwright or
 1. Open the in-game level editor (FAB button)
 2. Navigate to the desired level
 3. Edit platforms/pickups using the gizmo and property panel (`Q` toggles move/rotate, `Delete` removes selection, `Ctrl/Cmd+D` duplicates selection)
-4. Click **SAVE** — writes the profile directly to `assets/levels/levelN.json` on disk
+4. Click **SAVE** — writes the profile directly to `configs/levels/levelN.json` on disk
 5. Press F5 to reload the game; changes are live
 
 ### If You Want To Make Respite Levels More Frequent
@@ -383,7 +383,7 @@ Adjust these in `configs/player-config.json`:
 ### If You Debug Progression
 Look at:
 - `buildLevelProfilesFromFiles()` in `core/Engine.js` — level loading
-- `assets/levels/levelN.json` — the actual level data
+- `configs/levels/levelN.json` — the actual level data
 - `startLevelTransition()`
 - `queueLevelRestart()`
 - `scripts/player/main.lua` for player-specific state transitions and drain timing

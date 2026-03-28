@@ -19,7 +19,7 @@ const luaModules = import.meta.glob("../scripts/**/*.lua", {
   eager: true,
 });
 
-const levelJsonModules = import.meta.glob("../assets/levels/level*.json", {
+const levelJsonModules = import.meta.glob("../configs/levels/level*.json", {
   eager: true,
   import: "default",
 });
@@ -1620,7 +1620,7 @@ function clamp(value, min, max) {
 function buildLevelProfilesFromFiles(modules) {
   const profiles = [];
   for (let level = 1; level <= LEVEL_COUNT; level += 1) {
-    const key = `../assets/levels/level${level}.json`;
+    const key = `../configs/levels/level${level}.json`;
     const profile = modules[key];
     if (!profile) throw new Error(`Missing level file: ${key}`);
     profiles.push(profile);

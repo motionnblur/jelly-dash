@@ -18,7 +18,7 @@ function levelSaverPlugin() {
           try {
             const body = Buffer.concat(chunks).toString("utf8");
             const profile = JSON.parse(body);
-            const filePath = resolve("assets/levels", `level${profile.level}.json`);
+            const filePath = resolve("configs/levels", `level${profile.level}.json`);
             writeFileSync(filePath, JSON.stringify(profile, null, 2));
 
             // Invalidate the module in Vite's graph so the next page reload
@@ -49,7 +49,7 @@ export default defineConfig({
   plugins: [levelSaverPlugin()],
   server: {
     watch: {
-      ignored: ["**/assets/levels/**"],
+      ignored: ["**/configs/levels/**"],
     },
   },
 });

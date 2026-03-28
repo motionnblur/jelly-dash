@@ -3,7 +3,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = join(__dirname, "../assets/levels");
+const OUT_DIR = join(__dirname, "../configs/levels");
 
 // --- Constants (mirrors world-config.json + player-config.json) ---
 const LEVEL_COUNT = 50;
@@ -315,4 +315,4 @@ for (const profile of profiles) {
   writeFileSync(path, JSON.stringify(profile, null, 2));
 }
 
-console.log(`Generated ${profiles.length} level files in assets/levels/`);
+console.log(`Generated ${profiles.length} level files in configs/levels/`);
