@@ -1691,7 +1691,8 @@ function updatePickups(playerTranslation) {
   }
 }
 
-function updateFrame(delta) {
+function updateFrame(rawDelta) {
+  const delta = Math.min(rawDelta, 1 / 30);
   updateParticles(delta);
 
   if (playerState.isGameOver || levelState.isGameComplete) {
@@ -1703,6 +1704,7 @@ function updateFrame(delta) {
     return;
   }
 
+  world.integrationParameters.dt = delta;
   world.step();
   luaRuntime.callFunction("onUpdate", delta);
   clampPlayerToViewX();
