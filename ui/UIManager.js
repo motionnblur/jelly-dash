@@ -36,6 +36,13 @@ export class UIManager {
     this.consoleInputEl = document.getElementById("console-input");
     this.consoleLogEl = document.getElementById("console-log");
     this.consoleBooted = false;
+    this.minimapWidth = 0;
+    this.minimapHeight = 0;
+    this.minimapDirty = true;
+    this.minimapLastRenderAt = 0;
+    this.minimapLastPlayerX = null;
+    this.minimapLastPlayerY = null;
+    this.minimapProfileRef = null;
 
     if (this.consoleInputEl) {
       this.consoleInputEl.addEventListener("keydown", (e) => {
@@ -138,21 +145,49 @@ export class UIManager {
     const rect = svg.parentElement?.getBoundingClientRect?.() ?? svg.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width || 160));
     const height = Math.max(1, Math.round(rect.height || 196));
+    if (width === this.minimapWidth && height === this.minimapHeight) {
+      return;
+    }
+
+    this.minimapWidth = width;
+    this.minimapHeight = height;
+    this.minimapDirty = true;
     svg.dataset.width = String(width);
     svg.dataset.height = String(height);
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   }
 
-  updateMinimap(levelProfile, platforms = [], playerPosition = null) {
+  updateMinimap(levelProfile, platforms = [], playerPosition = null, force = false) {
     const svg = this.minimapSvgEl;
     if (!svg) {
       return;
     }
 
-    this.resizeMinimap();
+    if (!this.minimapWidth || !this.minimapHeight) {
+      this.resizeMinimap();
+    }
 
     const width = Number(svg.dataset.width || 160);
     const height = Number(svg.dataset.height || 196);
+    const playerX = Number(playerPosition?.x);
+    const playerY = Number(playerPosition?.y);
+    const now = performance.now();
+    const profileChanged = this.minimapProfileRef !== levelProfile;
+    const playerMoved =
+      !Number.isFinite(this.minimapLastPlayerX) ||
+      !Number.isFinite(this.minimapLastPlayerY) ||
+      Math.abs(playerX - this.minimapLastPlayerX) > 0.08 ||
+      Math.abs(playerY - this.minimapLastPlayerY) > 0.08;
+
+    if (
+      !force &&
+      !this.minimapDirty &&
+      !profileChanged &&
+      !playerMoved &&
+      now - this.minimapLastRenderAt < 80
+    ) {
+      return;
+    }
 
     const layout = Array.isArray(levelProfile?.layout) ? levelProfile.layout : [];
     if (!layout.length) {
@@ -197,8 +232,6 @@ export class UIManager {
       maxY = Math.max(maxY, node.y);
     }
 
-    const playerX = Number(playerPosition?.x);
-    const playerY = Number(playerPosition?.y);
     const playerVisible = Number.isFinite(playerX) && Number.isFinite(playerY);
 
     const rangeX = Math.max(1, maxX - minX);
@@ -340,6 +373,12 @@ export class UIManager {
     if (this.minimapPanelEl) {
       this.minimapPanelEl.dataset.hasRoute = nodes.length ? "true" : "false";
     }
+
+    this.minimapDirty = false;
+    this.minimapLastRenderAt = now;
+    this.minimapLastPlayerX = playerX;
+    this.minimapLastPlayerY = playerY;
+    this.minimapProfileRef = levelProfile;
   }
 
   showGameOver(title, message) {

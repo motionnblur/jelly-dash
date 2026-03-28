@@ -5,7 +5,7 @@ const JUMP_SOUND_URL = new URL(
 
 export function createJumpSoundController(soundConfig = {}) {
   const jumpSound = new Audio(JUMP_SOUND_URL);
-  jumpSound.preload = "auto";
+  jumpSound.preload = "metadata";
   jumpSound.volume = soundConfig.jump?.volume ?? 0.75;
 
   let enabled = true;

@@ -17,12 +17,15 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 ### 1. Engine Ownership
 - `core/Engine.js` owns:
   - Three.js setup
+  - renderer quality management (`configs/world-config.json.rendering.maxPixelRatio`)
   - Rapier world setup
   - player bridge / physics snapshotting
   - level generation
   - level progression
   - platform creation and animation
+  - pooled particle reuse
   - sound controller wiring
+  - lazy level-editor loading
   - deterministic test hooks
 - `scripts/player/main.lua` owns the player controller:
   - loader for the `scripts/player/` module set
@@ -62,6 +65,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 - `assets/sounds/rocket-sound.mp3` plays while rockets are active and is paused + rewound when thrust stops.
 - Audio playback is owned by `scripts/sound/rocketSound.js`; `core/Engine.js` only forwards `playerState.isRocketActive` into the controller.
 - `assets/sounds/bg-music.mp3` loops as low-volume background music and is started by `scripts/sound/bgMusic.js`.
+- Background music loading is deferred until the first user interaction; the file is not requested during the initial boot render.
 - Sound volumes are centralized in `configs/sound-config.json`.
 - All sound controllers expose `setVolume(0.0–1.0)` and `setEnabled(bool)` for runtime control by the options menu.
 
@@ -250,15 +254,19 @@ Use these when validating layout generation or progression through Playwright or
   - entry point
 - `core/Engine.js`
   - rendering, physics, input, gel logic, level loading, progression, test hooks
+  - renderer caps internal DPR using `configs/world-config.json.rendering.maxPixelRatio`
   - pause state (`gameplayState.isPaused`, `isEscMenuOpen`, `isOptionsOpen`, `isEditorOpen`)
   - audio options state (`audioOptions`) and `applyAudioChannel` / `applyAllAudio`
   - menu helpers: `openEscMenu`, `closeEscMenu`, `openOptions`, `closeOptions`
   - options UI wiring: `initOptionsUI`
+  - `ensureBackgroundMusicController()` defers background music controller creation until the first key / pointer interaction
+  - `ensureLevelEditorReady()` lazy-loads `editor/LevelEditor.js`; the first FAB click imports the module and opens it
+  - particles use pooled mesh instances with shared geometry rather than per-spawn create/dispose churn
   - `rebuildCurrentLevelPlatforms()` — clears and recreates all platforms from `levelState.currentProfile.layout` without resetting the player; used by the level editor
   - `levelEditorRef` — holds the return value of `initLevelEditor`; its `tick()` is called every frame when the editor is open to keep the orbital camera updated
   - `getPlayerSnapshot()` — returns the per-frame runtime snapshot consumed by Lua; includes `keys: { left, right, jump, boost }` (pre-computed booleans from the JS `keys` map) and `pendingHealthRestore` / `pendingRocketFuel` (consumed and zeroed here); Lua reads these fields directly from the snapshot instead of making separate bridge calls
 - `editor/LevelEditor.js`
-  - in-game level editor; initialized in `init()` and receives live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
+  - in-game level editor; lazy-loaded on the first `#editor-fab` click, then initialized with live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
   - toggled open/closed by `#editor-fab`; sets `gameplayState.isEditorOpen` and `gameplayState.isPaused` when open
   - orbital camera controls while open: left-drag = orbit, right-drag = pan, scroll = zoom; original camera is restored on close
   - platform selection via Three.js `Raycaster` on canvas click; selected platform highlighted with cyan emissive override
@@ -286,6 +294,7 @@ Use these when validating layout generation or progression through Playwright or
   - HUD updates and overlay visibility
   - minimap rendering (`resizeMinimap`, `updateMinimap`) from current route layout + live player position
   - minimap syncs SVG `viewBox` to measured panel size so route/player markers use the same coordinate space
+  - minimap SVG regeneration is throttled; forced refreshes happen on resize, level load, and editor rebuilds
   - player marker is always readable: high-contrast pulse marker, edge clamp, and offscreen direction arrow when player is outside route bounds
   - `showPaused` / `hidePaused`
   - `showEscMenu` / `hideEscMenu`
@@ -306,7 +315,7 @@ Use these when validating layout generation or progression through Playwright or
 - `assets/sounds/win-sound.mp3`
   - played once when the player touches the final hex and triggers a level transition
 - `scripts/sound/bgMusic.js`
-  - background music controller (`play`, `destroy`, `setVolume`, `setEnabled`)
+  - background music controller (`play`, `destroy`, `setVolume`, `setEnabled`); uses `preload = "none"` so the track is fetched only after an interaction-triggered play attempt
 - `scripts/sound/rocketSound.js`
   - rocket thrust audio controller (`sync`, `destroy`, `setVolume`, `setEnabled`)
 - `scripts/sound/impactSound.js`
@@ -327,7 +336,7 @@ Use these when validating layout generation or progression through Playwright or
 - `scripts/shared/config.lua`
   - mirrors movement / economy / detection / rocket config into Lua
 - `configs/world-config.json`
-  - centralized global parameters (gravity, colors, level generation)
+  - centralized global parameters (gravity, colors, level generation, `rendering.maxPixelRatio`)
 - `configs/player-config.json`
   - centralized player parameters (movement, drain costs, rockets, camera)
 - `configs/sound-config.json`
@@ -420,6 +429,7 @@ Look at:
   - **Shadowless Design**: All `box-shadow` and `text-shadow` properties are removed for a clean, futuristic look.
   - Premium typography using the **Outfit** font with high-contrast weights (700-800) in green tones.
 - **Portrait Layout**: The game renders in a **9:16 portrait canvas** (`getPortraitSize()` in `core/Engine.js` caps width at `height × 9/16`). The canvas is centered in the browser window via a flex body. `#game-wrap` is a `position: relative` container sized by JS; the canvas and `#overlay` live inside it. All other overlays remain `position: fixed` and cover the full viewport.
+  - Renderer quality is capped by `configs/world-config.json.rendering.maxPixelRatio` rather than blindly matching the full browser DPR; this is the main low-spec / high-DPI safeguard.
 - **HUD Layout**:
   - **Stat panel** (`#stat-panel`): a compact 72 px-wide glass panel at top-left containing two side-by-side vertical bar columns. Each column (`.vbar-col`) has an icon at the top (`⬡` for GEL, `▲` for Rocket), a tall narrow pill track (`.vbar-track`, 10 px wide, min 80 px tall) whose fill (`.vbar-fill`) grows from the bottom via `height %`, and a value + unit label at the bottom. `UIManager` sets `style.height` (not `style.width`) on `#health-fill` and `#rocket-fill`.
   - **Route panel** (`.level-panel`): glass panel positioned `position: absolute; bottom: 8px; left: 8px` inside `#game-wrap`. Shows current level and route tag.
@@ -434,4 +444,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, lazy-loaded level editor, deferred background music loading, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua)*

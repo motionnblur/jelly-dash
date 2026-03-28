@@ -5,7 +5,7 @@ const WIN_SOUND_URL = new URL(
 
 export function createWinSoundController(soundConfig = {}) {
   const winSound = new Audio(WIN_SOUND_URL);
-  winSound.preload = "auto";
+  winSound.preload = "metadata";
   winSound.volume = soundConfig.win?.volume ?? 0.75;
 
   let enabled = true;

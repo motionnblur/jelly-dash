@@ -5,7 +5,7 @@ const IMPACT_SOUND_URL = new URL(
 
 export function createImpactSoundController(soundConfig = {}) {
   const impactSound = new Audio(IMPACT_SOUND_URL);
-  impactSound.preload = "auto";
+  impactSound.preload = "metadata";
   impactSound.volume = soundConfig.impact?.volume ?? 0.75;
 
   let enabled = true;

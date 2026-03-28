@@ -11,7 +11,6 @@ import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 import soundConfig from "../configs/sound-config.json";
 import pickupConfig from "../configs/pickup-config.json";
-import { initLevelEditor } from "../editor/LevelEditor.js";
 
 const luaModules = import.meta.glob("../scripts/**/*.lua", {
   query: "?raw",
@@ -40,11 +39,14 @@ let jumpSoundController;
 let rocketSoundController;
 let impactSoundController;
 let winSoundController;
+let levelEditorModulePromise;
 
 const platforms = [];
 const particles = [];
+const particlePool = [];
 const pickups = [];
 const keys = {};
+const PARTICLE_GEOMETRY = new THREE.SphereGeometry(1, 6, 6);
 
 const audioOptions = {
   master: true,
@@ -56,7 +58,11 @@ const audioOptions = {
 };
 
 const {
-  rendering: { skyColor: SKY_COLOR, fogColor: FOG_COLOR },
+  rendering: {
+    skyColor: SKY_COLOR,
+    fogColor: FOG_COLOR,
+    maxPixelRatio: MAX_PIXEL_RATIO = 1.25,
+  },
   campaign: {
     levelCount: LEVEL_COUNT,
   },
@@ -209,6 +215,66 @@ function getPlayerSnapshot() {
   };
 }
 
+function applyRendererQuality() {
+  if (!renderer) {
+    return;
+  }
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+}
+
+function ensureBackgroundMusicController() {
+  if (!bgMusicController) {
+    bgMusicController = createBackgroundMusicController(soundConfig);
+    applyAudioChannel("bgMusic");
+  }
+
+  return bgMusicController;
+}
+
+function primeBackgroundMusic() {
+  const ctrl = ensureBackgroundMusicController();
+  if (audioOptions.master && audioOptions.bgMusic.enabled) {
+    ctrl.play();
+  }
+}
+
+async function ensureLevelEditorReady() {
+  if (levelEditorRef) {
+    return levelEditorRef;
+  }
+
+  if (!levelEditorModulePromise) {
+    levelEditorModulePromise = import("../editor/LevelEditor.js");
+  }
+
+  const { initLevelEditor } = await levelEditorModulePromise;
+  if (levelEditorRef) {
+    return levelEditorRef;
+  }
+
+  levelEditorRef = initLevelEditor({
+    scene,
+    camera,
+    renderer,
+    platforms,
+    pickups,
+    levelState,
+    gameplayState,
+    clock,
+    player,
+    rebuildCurrentLevelPlatforms,
+    buildLevel,
+    resetPlayerForTest: () => {
+      playerState.isGameOver = false;
+      uiManager.hideGameOver();
+      resetPlayerForLevel();
+    },
+  });
+
+  return levelEditorRef;
+}
+
 function applyPlayerFrameState(nextState = {}) {
   if (!nextState) {
     return;
@@ -358,7 +424,7 @@ async function init() {
   camera.lookAt(0, 2.2, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
+  applyRendererQuality();
   renderer.setSize(initW, initH);
   renderer.setClearColor(SKY_COLOR, 1);
   const gameWrap = document.getElementById('game-wrap');
@@ -366,7 +432,6 @@ async function init() {
   gameWrap.style.height = initH + 'px';
   gameWrap.appendChild(renderer.domElement);
 
-  bgMusicController = createBackgroundMusicController(soundConfig);
   jumpSoundController = createJumpSoundController(soundConfig);
   rocketSoundController = createRocketSoundController(soundConfig);
   impactSoundController = createImpactSoundController(soundConfig);
@@ -458,35 +523,36 @@ async function init() {
   buildLevel(1);
   setupTestingHooks();
 
-  levelEditorRef = initLevelEditor({
-    scene,
-    camera,
-    renderer,
-    platforms,
-    pickups,
-    levelState,
-    gameplayState,
-    clock,
-    player,
-    rebuildCurrentLevelPlatforms,
-    buildLevel,
-    resetPlayerForTest: () => {
-      playerState.isGameOver = false;
-      uiManager.hideGameOver();
-      resetPlayerForLevel();
-    },
-  });
+  const editorFab = document.getElementById("editor-fab");
+  if (editorFab) {
+    editorFab.addEventListener(
+      "click",
+      async (event) => {
+        if (levelEditorRef) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const ref = await ensureLevelEditorReady();
+        ref?.open?.();
+      },
+      { capture: true, once: true },
+    );
+  }
 
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("resize", onWindowResize);
+  window.addEventListener("pointerdown", primeBackgroundMusic, { passive: true });
 
   uiManager.removeLoadingScreen();
-  bgMusicController?.play();
   animate();
 }
 
 function onKeyDown(event) {
+  primeBackgroundMusic();
+
   if (event.code === "F1") {
     event.preventDefault();
     uiManager.toggleConsole();
@@ -523,7 +589,6 @@ function onKeyDown(event) {
   }
 
   keys[event.code] = true;
-  bgMusicController?.play();
 }
 
 function onKeyUp(event) {
@@ -1102,32 +1167,58 @@ function spawnParticles(
   const particleSize = 0.08 * particleScale;
 
   for (let index = 0; index < count; index += 1) {
-    const geometry = new THREE.SphereGeometry(particleSize, 8, 8);
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.45,
-      transparent: true,
-    });
-    const particle = new THREE.Mesh(geometry, material);
-    particle.position.set(x, y, z);
+    const particle = acquireParticle();
+    particle.mesh.visible = true;
+    particle.mesh.position.set(x, y, z);
+    particle.mesh.scale.setScalar(particleSize);
+    particle.mesh.material.color.setHex(color);
+    particle.mesh.material.opacity = 1;
 
-    const velocity = new THREE.Vector3(
+    particle.velocity.set(
       (Math.random() - 0.5) * 5.5 * speedScale,
       Math.random() * 6.5 * speedScale,
       (Math.random() - 0.5) * 2.5 * speedScale,
     );
-
-    scene.add(particle);
-    particles.push({
-      mesh: particle,
-      velocity,
-      life: 1.0,
-      lifeDecay: options.lifeDecay ?? 1.5,
-    });
+    particle.life = 1.0;
+    particle.lifeDecay = options.lifeDecay ?? 1.5;
+    particles.push(particle);
   }
 
   return playerState.gelMass;
+}
+
+function acquireParticle() {
+  const pooled = particlePool.find((particle) => !particle.active);
+  if (pooled) {
+    pooled.active = true;
+    return pooled;
+  }
+
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(PARTICLE_GEOMETRY, material);
+  mesh.visible = false;
+  scene.add(mesh);
+
+  const particle = {
+    active: true,
+    mesh,
+    velocity: new THREE.Vector3(),
+    life: 0,
+    lifeDecay: 1.5,
+  };
+  particlePool.push(particle);
+  return particle;
+}
+
+function releaseParticle(particle) {
+  particle.active = false;
+  particle.life = 0;
+  particle.mesh.visible = false;
 }
 
 function syncPlayerCollider(force = false) {
@@ -1163,9 +1254,7 @@ function clearPlatforms() {
 
 function clearParticles() {
   for (const particle of particles) {
-    scene.remove(particle.mesh);
-    particle.mesh.geometry.dispose();
-    particle.mesh.material.dispose();
+    releaseParticle(particle);
   }
   particles.length = 0;
 }
@@ -1235,6 +1324,7 @@ function buildLevel(levelNumber) {
     levelState.currentProfile,
     platforms,
     playerBody ? playerBody.translation() : null,
+    true,
   );
 }
 
@@ -1273,6 +1363,7 @@ function rebuildCurrentLevelPlatforms() {
     levelState.currentProfile,
     platforms,
     playerBody ? playerBody.translation() : null,
+    true,
   );
 }
 
@@ -1430,9 +1521,7 @@ function updateParticles(delta) {
     particle.mesh.material.opacity = particle.life;
 
     if (particle.life <= 0) {
-      scene.remove(particle.mesh);
-      particle.mesh.geometry.dispose();
-      particle.mesh.material.dispose();
+      releaseParticle(particle);
       particles.splice(index, 1);
     }
   }
@@ -1600,6 +1689,7 @@ function onWindowResize() {
   const { width, height } = getPortraitSize();
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  applyRendererQuality();
   renderer.setSize(width, height);
   const gameWrap = document.getElementById('game-wrap');
   gameWrap.style.width = width + 'px';
@@ -1734,6 +1824,7 @@ if (import.meta.hot) {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("resize", onWindowResize);
+    window.removeEventListener("pointerdown", primeBackgroundMusic);
   });
 }
 

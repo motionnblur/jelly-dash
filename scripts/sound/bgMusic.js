@@ -9,13 +9,14 @@ export function createBackgroundMusicController(soundConfig = {}) {
     soundConfig.bgMusic?.volume ??
     0.2;
   const bgMusic = new Audio(BG_MUSIC_URL);
-  bgMusic.preload = "auto";
+  bgMusic.preload = "none";
   bgMusic.volume = initialVolume;
   bgMusic.loop = true;
 
   let isPlaying = false;
   let enabled = true;
   let baseVolume = initialVolume;
+  let hasRequestedLoad = false;
 
   function play() {
     if (isPlaying || !enabled) {
@@ -23,6 +24,10 @@ export function createBackgroundMusicController(soundConfig = {}) {
     }
 
     try {
+      if (!hasRequestedLoad) {
+        hasRequestedLoad = true;
+        bgMusic.load();
+      }
       const playback = bgMusic.play();
       isPlaying = true;
       if (playback && typeof playback.catch === "function") {

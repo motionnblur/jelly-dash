@@ -1,7 +1,8 @@
 {
   "rendering": {
     "skyColor": 395540,
-    "fogColor": 724992
+    "fogColor": 724992,
+    "maxPixelRatio": 1.25
   },
   "campaign": {
     "levelCount": 50,

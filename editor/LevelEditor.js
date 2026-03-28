@@ -1202,5 +1202,11 @@ export function initLevelEditor({
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
-  return { isOpen: () => isOpen, tick: syncOrbitCamera };
+  return {
+    isOpen: () => isOpen,
+    open: openEditor,
+    close: closeEditor,
+    toggle: () => (isOpen ? closeEditor() : openEditor()),
+    tick: syncOrbitCamera,
+  };
 }

@@ -5,7 +5,7 @@ const ROCKET_SOUND_URL = new URL(
 
 export function createRocketSoundController(soundConfig = {}) {
   const rocketSound = new Audio(ROCKET_SOUND_URL);
-  rocketSound.preload = "auto";
+  rocketSound.preload = "metadata";
   rocketSound.volume = soundConfig.rocket?.volume ?? 0.6;
   rocketSound.loop = true;
 
