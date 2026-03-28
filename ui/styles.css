@@ -207,6 +207,58 @@ canvas {
   z-index: 10;
 }
 
+.minimap-panel {
+  box-sizing: border-box;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: clamp(128px, 20vw, 172px);
+  padding: 8px 8px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(92, 255, 120, 0.09) 0%, rgba(92, 255, 120, 0.02) 100%),
+    var(--glass);
+  backdrop-filter: blur(28px) saturate(120%);
+  -webkit-backdrop-filter: blur(28px) saturate(120%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.minimap-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.minimap-note {
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--font-muted);
+}
+
+.minimap-stage {
+  position: relative;
+  width: 100%;
+  height: clamp(92px, 14vh, 128px);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(92, 255, 120, 0.14);
+  background:
+    radial-gradient(circle at 50% 20%, rgba(92, 255, 120, 0.08), transparent 55%),
+    rgba(0, 0, 0, 0.35);
+}
+
+#minimap-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 #route-tag {
   margin: 4px 0 0;
   font-size: 0.6rem;

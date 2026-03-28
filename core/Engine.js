@@ -1224,6 +1224,11 @@ function buildLevel(levelNumber) {
     profile.isRespite,
     profile.label,
   );
+  uiManager.updateMinimap(
+    levelState.currentProfile,
+    platforms,
+    playerBody ? playerBody.translation() : null,
+  );
 }
 
 function rebuildCurrentLevelPlatforms() {
@@ -1257,6 +1262,11 @@ function rebuildCurrentLevelPlatforms() {
   for (const def of levelState.currentProfile.pickups ?? []) {
     createPickup(def);
   }
+  uiManager.updateMinimap(
+    levelState.currentProfile,
+    platforms,
+    playerBody ? playerBody.translation() : null,
+  );
 }
 
 function startLevelTransition() {
@@ -1543,6 +1553,11 @@ function updateFrame(delta) {
 
   player.position.copy(snapshot.translation);
   updateCamera(snapshot.translation);
+  uiManager.updateMinimap(
+    levelState.currentProfile,
+    platforms,
+    snapshot.translation,
+  );
 }
 
 function animate() {
@@ -1573,6 +1588,7 @@ function onWindowResize() {
   const gameWrap = document.getElementById('game-wrap');
   gameWrap.style.width = width + 'px';
   gameWrap.style.height = height + 'px';
+  uiManager.resizeMinimap();
 }
 
 function mulberry32(seed) {

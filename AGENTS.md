@@ -232,6 +232,7 @@ Use these when validating layout generation or progression through Playwright or
 ## File Structure
 - `index.html`
   - HUD shell
+  - route minimap panel (`.minimap-panel`) with SVG stage (`#minimap-svg`)
   - loading overlay
   - game-over overlay
   - paused overlay (`#paused`)
@@ -274,6 +275,9 @@ Use these when validating layout generation or progression through Playwright or
   - Wasmoon wrapper
 - `ui/UIManager.js`
   - HUD updates and overlay visibility
+  - minimap rendering (`resizeMinimap`, `updateMinimap`) from current route layout + live player position
+  - minimap syncs SVG `viewBox` to measured panel size so route/player markers use the same coordinate space
+  - player marker is always readable: high-contrast pulse marker, edge clamp, and offscreen direction arrow when player is outside route bounds
   - `showPaused` / `hidePaused`
   - `showEscMenu` / `hideEscMenu`
   - `showOptions` / `hideOptions`
@@ -394,6 +398,7 @@ Look at:
 - **HUD Layout**:
   - **Stat panel** (`#stat-panel`): a compact 72 px-wide glass panel at top-left containing two side-by-side vertical bar columns. Each column (`.vbar-col`) has an icon at the top (`⬡` for GEL, `▲` for Rocket), a tall narrow pill track (`.vbar-track`, 10 px wide, min 80 px tall) whose fill (`.vbar-fill`) grows from the bottom via `height %`, and a value + unit label at the bottom. `UIManager` sets `style.height` (not `style.width`) on `#health-fill` and `#rocket-fill`.
   - **Route panel** (`.level-panel`): glass panel positioned `position: absolute; bottom: 8px; left: 8px` inside `#game-wrap`. Shows current level and route tag.
+  - **Minimap panel** (`.minimap-panel`): glass panel positioned at bottom-right of `#game-wrap` showing the current route graph and live player marker. Route nodes remain route-relative while player marker stays visible via edge clamping and draws a direction pointer when the player is outside mapped bounds.
 - Interactive states:
   - **Health Warning**: `#health-value` shakes and `.health-panel .stat-icon` turns red when health is ≤ 28 HP.
   - **Rocket Active**: `.stat-icon--boost` brightens while rockets are active; `.rocket-panel.is-empty` dims when fuel is zero.
@@ -404,4 +409,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, Ctrl+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, Ctrl+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*
