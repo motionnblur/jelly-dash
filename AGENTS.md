@@ -25,7 +25,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
   - platform creation and animation
   - pooled particle reuse
   - sound controller wiring
-  - lazy level-editor loading
+  - dev-only lazy level-editor loading
   - deterministic test hooks
 - `scripts/player/main.lua` owns the player controller:
   - loader for the `scripts/player/` module set
@@ -260,13 +260,14 @@ Use these when validating layout generation or progression through Playwright or
   - menu helpers: `openEscMenu`, `closeEscMenu`, `openOptions`, `closeOptions`
   - options UI wiring: `initOptionsUI`
   - `ensureBackgroundMusicController()` defers background music controller creation until the first key / pointer interaction
-  - `ensureLevelEditorReady()` lazy-loads `editor/LevelEditor.js`; the first FAB click imports the module and opens it
+  - `removeProductionEditorUI()` strips the editor DOM from production builds
+  - `ensureLevelEditorReady()` lazy-loads `editor/LevelEditor.js` only in dev builds; the first FAB click imports the module and opens it
   - particles use pooled mesh instances with shared geometry rather than per-spawn create/dispose churn
   - `rebuildCurrentLevelPlatforms()` — clears and recreates all platforms from `levelState.currentProfile.layout` without resetting the player; used by the level editor
   - `levelEditorRef` — holds the return value of `initLevelEditor`; its `tick()` is called every frame when the editor is open to keep the orbital camera updated
   - `getPlayerSnapshot()` — returns the per-frame runtime snapshot consumed by Lua; includes `keys: { left, right, jump, boost }` (pre-computed booleans from the JS `keys` map) and `pendingHealthRestore` / `pendingRocketFuel` (consumed and zeroed here); Lua reads these fields directly from the snapshot instead of making separate bridge calls
 - `editor/LevelEditor.js`
-  - in-game level editor; lazy-loaded on the first `#editor-fab` click, then initialized with live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
+  - in-game level editor; development-only, lazy-loaded on the first `#editor-fab` click in dev, then initialized with live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
   - toggled open/closed by `#editor-fab`; sets `gameplayState.isEditorOpen` and `gameplayState.isPaused` when open
   - orbital camera controls while open: left-drag = orbit, right-drag = pan, scroll = zoom; original camera is restored on close
   - platform selection via Three.js `Raycaster` on canvas click; selected platform highlighted with cyan emissive override
@@ -444,4 +445,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, lazy-loaded level editor, deferred background music loading, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, development-only in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, deferred background music loading, production editor stripping, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua)*

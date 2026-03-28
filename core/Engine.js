@@ -22,6 +22,7 @@ const levelJsonModules = import.meta.glob("../configs/levels/level*.json", {
   eager: true,
   import: "default",
 });
+const IS_DEV = import.meta.env.DEV;
 
 let scene;
 let camera;
@@ -240,6 +241,10 @@ function primeBackgroundMusic() {
 }
 
 async function ensureLevelEditorReady() {
+  if (!IS_DEV) {
+    return null;
+  }
+
   if (levelEditorRef) {
     return levelEditorRef;
   }
@@ -273,6 +278,16 @@ async function ensureLevelEditorReady() {
   });
 
   return levelEditorRef;
+}
+
+function removeProductionEditorUI() {
+  if (IS_DEV) {
+    return;
+  }
+
+  document.getElementById("editor-fab")?.remove();
+  document.getElementById("level-editor")?.remove();
+  document.getElementById("editor-stop-test")?.remove();
 }
 
 function applyPlayerFrameState(nextState = {}) {
@@ -407,6 +422,7 @@ if (existingCanvas) {
 async function init() {
   await RAPIER.init();
   world = new RAPIER.World({ x: 0, y: gameConfig.gravity, z: 0 });
+  removeProductionEditorUI();
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY_COLOR);
@@ -523,7 +539,7 @@ async function init() {
   buildLevel(1);
   setupTestingHooks();
 
-  const editorFab = document.getElementById("editor-fab");
+  const editorFab = IS_DEV ? document.getElementById("editor-fab") : null;
   if (editorFab) {
     editorFab.addEventListener(
       "click",
