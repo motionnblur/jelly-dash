@@ -25,12 +25,12 @@
     },
     {
       "x": -6.44,
-      "y": 19.29,
+      "y": 23.734277382217886,
       "z": 0,
       "w": 2,
       "h": 0.2,
       "d": 2,
-      "color": 16765798,
+      "color": 1864152,
       "isFinal": false,
       "shape": "square",
       "rotationY": 4.914847173616033,
@@ -49,7 +49,7 @@
       "w": 2,
       "h": 0.3,
       "d": 2,
-      "color": 16765798,
+      "color": 16106001,
       "isFinal": false,
       "shape": "triangle",
       "rotationY": 0.143116998663535,
@@ -62,8 +62,27 @@
       "swingSpeed": 0
     },
     {
-      "x": 0.04,
-      "y": 12.871723576250739,
+      "x": 0.03,
+      "y": 13.1,
+      "z": 0,
+      "w": 2,
+      "h": 0.3,
+      "d": 2,
+      "color": 16765798,
+      "isFinal": false,
+      "shape": "triangle",
+      "rotationY": 1.7278759594743864,
+      "isDestroyable": true,
+      "hitsToBreak": 2,
+      "bobPhase": 4.4331363000655974,
+      "motionAmplitude": 0.3,
+      "motionSpeed": 1.94,
+      "swingAmplitude": 0,
+      "swingSpeed": 0
+    },
+    {
+      "x": 0.28,
+      "y": 17,
       "z": 0,
       "w": 2,
       "h": 0.2,
@@ -71,7 +90,26 @@
       "color": 16747099,
       "isFinal": false,
       "shape": "triangle",
-      "rotationY": 1.5707963267948966,
+      "rotationY": 2.336995868420407,
+      "isDestroyable": false,
+      "hitsToBreak": 2,
+      "bobPhase": 0,
+      "motionAmplitude": 0,
+      "motionSpeed": 1,
+      "swingAmplitude": 0,
+      "swingSpeed": 1
+    },
+    {
+      "x": 1.61,
+      "y": 20.35,
+      "z": 0,
+      "w": 2,
+      "h": 0.2,
+      "d": 2,
+      "color": 16184820,
+      "isFinal": false,
+      "shape": "triangle",
+      "rotationY": 3.5569810155644435,
       "isDestroyable": false,
       "hitsToBreak": 2,
       "bobPhase": 0,
@@ -82,12 +120,12 @@
     },
     {
       "x": 0.9686455819578094,
-      "y": 21.48062952294613,
+      "y": 26.80069881036317,
       "z": 0,
       "w": 3.972977800477208,
       "h": 0.5,
       "d": 3.972977800477208,
-      "color": 16765286,
+      "color": 9519532,
       "isFinal": true,
       "shape": "hex",
       "rotationY": 4.26137823274245,
@@ -98,6 +136,16 @@
       "motionSpeed": 0,
       "swingAmplitude": 0,
       "swingSpeed": 0
+    }
+  ],
+  "pickups": [
+    {
+      "x": 0.25,
+      "y": 14.81,
+      "z": 0,
+      "rotationY": 0,
+      "type": "rocket",
+      "amount": 0.3
     }
   ]
 }
