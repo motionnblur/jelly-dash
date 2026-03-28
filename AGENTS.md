@@ -248,8 +248,7 @@ Use these when validating layout generation or progression through Playwright or
   - ESC menu overlay (`#esc-menu`) — RESTART / OPTIONS / RESUME
   - options menu overlay (`#options-menu`) — master toggle, BG music, and per-FX controls
   - campaign-complete overlay
-  - level editor FAB button (`#editor-fab`) — grid icon at bottom-right of viewport
-  - level editor panel (`#level-editor`) — slides in from the right edge of the viewport; contains platform list, `#editor-add-btn`, `#editor-delete-btn`, `#editor-undo-btn`, `#editor-export-btn`
+  - no editor markup in production HTML; dev-only editor DOM is injected at runtime
 - `main.js`
   - entry point
 - `core/Engine.js`
@@ -260,6 +259,7 @@ Use these when validating layout generation or progression through Playwright or
   - menu helpers: `openEscMenu`, `closeEscMenu`, `openOptions`, `closeOptions`
   - options UI wiring: `initOptionsUI`
   - `ensureBackgroundMusicController()` defers background music controller creation until the first key / pointer interaction
+  - `ensureDevEditorTrigger()` injects a tiny dev-only FAB when `import.meta.env.DEV` is true
   - `removeProductionEditorUI()` strips the editor DOM from production builds
   - `ensureLevelEditorReady()` lazy-loads `editor/LevelEditor.js` only in dev builds; the first FAB click imports the module and opens it
   - particles use pooled mesh instances with shared geometry rather than per-spawn create/dispose churn
@@ -268,6 +268,7 @@ Use these when validating layout generation or progression through Playwright or
   - `getPlayerSnapshot()` — returns the per-frame runtime snapshot consumed by Lua; includes `keys: { left, right, jump, boost }` (pre-computed booleans from the JS `keys` map) and `pendingHealthRestore` / `pendingRocketFuel` (consumed and zeroed here); Lua reads these fields directly from the snapshot instead of making separate bridge calls
 - `editor/LevelEditor.js`
   - in-game level editor; development-only, lazy-loaded on the first `#editor-fab` click in dev, then initialized with live references to `scene`, `camera`, `renderer`, `platforms`, `levelState`, `gameplayState`, `clock`, `rebuildCurrentLevelPlatforms`, and `buildLevel`
+  - `ensureEditorDOM()` injects the editor panel and stop-test button on demand; `index.html` no longer contains static editor markup
   - toggled open/closed by `#editor-fab`; sets `gameplayState.isEditorOpen` and `gameplayState.isPaused` when open
   - orbital camera controls while open: left-drag = orbit, right-drag = pan, scroll = zoom; original camera is restored on close
   - platform selection via Three.js `Raycaster` on canvas click; selected platform highlighted with cyan emissive override

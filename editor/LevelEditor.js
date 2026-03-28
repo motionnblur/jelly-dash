@@ -100,6 +100,63 @@ function buildGizmo(scene) {
   };
 }
 
+function ensureEditorDOM() {
+  if (!document.getElementById("level-editor")) {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `
+      <div id="level-editor" class="editor-panel">
+        <div class="editor-hdr">
+          <span class="editor-title">LEVEL EDITOR</span>
+          <button id="editor-close-btn" class="editor-close-btn">✕</button>
+        </div>
+
+        <div class="editor-level-nav">
+          <button id="editor-prev-level" class="ed-nav-btn">‹</button>
+          <span id="editor-level-label">1 / 50</span>
+          <button id="editor-next-level" class="ed-nav-btn">›</button>
+        </div>
+
+        <div class="editor-subhdr">PLATFORMS</div>
+        <div id="editor-platform-list" class="editor-platform-list"></div>
+
+        <div class="editor-list-actions">
+          <button id="editor-add-btn" class="ed-action-btn">+ ADD</button>
+          <button id="editor-delete-btn" class="ed-action-btn ed-action-btn--del">✕ DEL</button>
+          <button id="editor-undo-btn" class="ed-action-btn ed-action-btn--undo" title="Undo (Ctrl+Z)">↩ UNDO</button>
+        </div>
+
+        <div class="editor-subhdr">PICKUPS</div>
+        <div id="editor-pickup-list" class="editor-platform-list editor-pickup-list"></div>
+        <div class="editor-list-actions">
+          <button id="editor-add-health-btn" class="ed-action-btn ed-action-btn--pickup-health">+ HEALTH</button>
+          <button id="editor-add-rocket-btn" class="ed-action-btn ed-action-btn--pickup-rocket">+ ROCKET</button>
+        </div>
+
+        <div id="editor-properties" class="editor-properties">
+          <div class="ed-no-sel">Click a platform to edit</div>
+        </div>
+
+        <div class="editor-footer">
+          <div class="editor-footer-actions">
+            <button id="editor-test-btn" class="ed-action-btn ed-action-btn--test">▶ TEST</button>
+            <button id="editor-export-btn" class="ed-action-btn ed-action-btn--save">SAVE</button>
+          </div>
+          <div class="editor-hint">LMB drag: orbit · RMB drag: pan · Scroll: zoom · Q: move/rotate gizmo · Del: delete · Ctrl+D: duplicate · Ctrl+Z: undo · R: reset cam</div>
+        </div>
+      </div>
+      `,
+    );
+  }
+
+  if (!document.getElementById("editor-stop-test")) {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<button id="editor-stop-test" style="display:none;">◼ STOP TEST</button>`,
+    );
+  }
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function initLevelEditor({
@@ -116,6 +173,8 @@ export function initLevelEditor({
   buildLevel,
   resetPlayerForTest,
 }) {
+  ensureEditorDOM();
+
   let isOpen        = false;
   let isTestMode    = false;
   let selectedIndex = -1;
