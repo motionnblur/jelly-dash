@@ -1040,7 +1040,8 @@ function createPlayer() {
   const playerDesc = RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_SPAWN.z)
     .setCanSleep(false)
-    .enabledRotations(false, false, false);
+    .enabledRotations(false, false, false)
+    .enabledTranslations(true, true, false);
 
   playerBody = world.createRigidBody(playerDesc);
   playerCollider = world.createCollider(
