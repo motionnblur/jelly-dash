@@ -194,8 +194,13 @@ Difficulty grows across the 50 levels via the stored layout data:
 | P | Toggle pause |
 | ESC | Open/close ESC menu (or go back from Options) |
 | F1 | Toggle developer cheat terminal |
+| Q | **Editor**: toggle gizmo mode (move axes / rotate ring) |
+| Delete | **Editor**: remove selected platform or pickup |
+| Ctrl+D / Cmd+D | **Editor**: duplicate selected platform or pickup |
+| Ctrl+Z / Cmd+Z | **Editor**: undo editor action |
+| R | **Editor**: reset orbit camera |
 
-> **Note:** When `gameplayState.isEditorOpen` is `true`, the `onKeyDown` handler returns immediately after the `F1` check. P and ESC have no effect while the level editor is open.
+> **Note:** When `gameplayState.isEditorOpen` is `true`, the main `onKeyDown` handler returns immediately after the `F1` check. P and ESC have no effect while the level editor is open; editor-specific shortcuts are handled by `onEditorKeyDown` in `editor/LevelEditor.js`.
 
 ## Cheat System (F1 Terminal)
 The game includes a hidden system terminal for developers and advanced users.
@@ -257,19 +262,21 @@ Use these when validating layout generation or progression through Playwright or
   - orbital camera controls while open: left-drag = orbit, right-drag = pan, scroll = zoom; original camera is restored on close
   - platform selection via Three.js `Raycaster` on canvas click; selected platform highlighted with cyan emissive override
   - live property editing: position, size, shape, rotation, color, vertical motion, horizontal swing, destroyable flags — each change pushes history then calls `rebuildCurrentLevelPlatforms()`
-  - **Transform gizmo**: `buildGizmo(scene)` creates a `THREE.Group` with three colored axis arrows (X = red `0xff2222`, Y = green `0x22ff44`, Z = blue `0x2266ff`) rendered with `depthTest: false` so they always appear on top; the group is added to the scene once at init and shown/hidden based on selection; `scaleGizmo()` keeps the visual size constant by scaling against camera distance
-    - hovering an arrow turns it yellow (`AXIS_HOVER = 0xffdd00`)
-    - clicking and dragging an arrow moves the platform along that axis using plane-intersection math (`makeDragPlane` builds a plane containing the axis with its normal facing the camera; `rayPlaneHit` intersects the mouse ray; the delta is projected onto the axis vector for 1D movement)
+  - **Transform gizmo**: `buildGizmo(scene)` creates a `THREE.Group` with three colored axis arrows (X = red `0xff2222`, Y = green `0x22ff44`, Z = blue `0x2266ff`) plus a Y-axis rotation ring; all handles render with `depthTest: false` so they stay visible on top; `Q` toggles between translate and rotate modes; `scaleGizmo()` keeps the visual size constant by scaling against camera distance
+    - hovering the active handle turns it yellow (`AXIS_HOVER = 0xffdd00`)
+    - clicking and dragging an axis arrow moves the selected object along that axis using plane-intersection math (`makeDragPlane` builds a plane containing the axis with its normal facing the camera; `rayPlaneHit` intersects the mouse ray; the delta is projected onto the axis vector for 1D movement)
+    - clicking and dragging the rotate ring rotates the selected object around Y (`makeRotatePlaneY` + angle-delta math); platform inspector `Rot °` updates live during drag
     - the mesh and Rapier body are updated live on every `mousemove` during a drag; `rebuild()` (which recreates the full physics collider) fires only on `mouseup`
     - history is pushed at `mousedown` (before drag starts) so a full drag undo is a single step
   - **Undo system**: `pushHistory()` deep-copies `levelState.currentProfile.layout` onto a capped stack (`MAX_HISTORY = 60`); `undo()` pops the stack, restores the layout in-place, calls `rebuildCurrentLevelPlatforms()` directly (bypassing `rebuild()` to avoid re-pushing), then refreshes the UI; history is cleared on level change and on editor close
-    - `pushHistory()` is called before: every property input `change` event, every color `input` event, gizmo drag start (`mousedown`), Add, Delete
+    - `pushHistory()` is called before: every property input `change` event, every color `input` event, gizmo drag start (`mousedown`), Add, Delete, Duplicate
     - `rebuild()` itself does **not** push history — callers are responsible
-    - **Ctrl+Z** is handled by `onEditorKeyDown` (registered on `window` while the editor is open); skipped when an `<input>` or `<textarea>` is focused so browser-native field undo still works
+    - **Ctrl/Cmd+Z** is handled by `onEditorKeyDown` (registered on `window` while the editor is open); skipped when form controls are focused so browser-native field undo still works
     - `#editor-undo-btn` also calls `undo()` for mouse-only workflows
   - level navigation (prev/next arrows) calls `buildLevel()` to switch levels while staying in editor mode; clears history
   - Add platform: inserts a `freshPlatformDef` before the final platform in the layout
-  - Delete platform: splices the selected entry from the layout
+  - Delete selected object: removes the selected platform or pickup (`Delete` key or `#editor-delete-btn`)
+  - Duplicate selected object: clones the selected platform or pickup (`Ctrl/Cmd+D`) with a small position offset and selects the duplicate; duplicating the final platform forces the clone to non-final to preserve a single level goal
   - **SAVE button** (`#editor-export-btn`): POSTs the full profile object (`level`, `isRespite`, `label`, `estimatedDrain`, `layout`) to `/api/save-level`; before serializing, calls `flushPropertiesToDef()` to capture any uncommitted input values (typed but not yet blurred); on success shows `✓ SAVED`, on failure shows `✗ FAILED`
 - `core/LuaRuntime.js`
   - Wasmoon wrapper
@@ -339,7 +346,7 @@ Use these when validating layout generation or progression through Playwright or
 ### If You Want To Hand-Author a Level
 1. Open the in-game level editor (FAB button)
 2. Navigate to the desired level
-3. Edit platforms using the gizmo, property panel, Add/Delete buttons
+3. Edit platforms/pickups using the gizmo and property panel (`Q` toggles move/rotate, `Delete` removes selection, `Ctrl/Cmd+D` duplicates selection)
 4. Click **SAVE** — writes the profile directly to `assets/levels/levelN.json` on disk
 5. Press F5 to reload the game; changes are live
 
@@ -415,4 +422,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, XYZ transform gizmo, live property editing, Ctrl+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*
+*Last Updated: March 28, 2026 (portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation)*
