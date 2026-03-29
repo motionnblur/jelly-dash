@@ -85,10 +85,7 @@ This is a 3D vertical climbing platformer built with **Three.js** and **Rapier**
 
 This is the main balancing invariant. Drain is intentionally aggressive so health management is a real constraint at all stages. Expected per-phase drain at perfect play:
 - Opening Arc (levels 1–9): ~28–35 HP
-- Rising Rhythm (levels 10–21): ~50–62 HP
-- Tighter Gaps (levels 22–35): ~68–78 HP
-- Precision Run (levels 36–46): ~80–88 HP
-- Final Ascent (levels 47–50): ~88–92 HP
+- Rising Rhythm (levels 10–15): ~50–62 HP
 
 Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 0.0–1.0 for physics/visual scaling). Critical warning triggers at ≤ 28 HP.
 
@@ -106,8 +103,8 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 - If the grounded raycast hits the final platform, the next level is queued.
 
 ### 6. Level Flow
-- The game contains `LEVEL_COUNT = 50`.
-- Each level is loaded from a static JSON file (`configs/levels/level1.json` … `configs/levels/level50.json`) at startup via `import.meta.glob`.
+- The game contains `LEVEL_COUNT = 15`.
+- Each level is loaded from a static JSON file (`configs/levels/level1.json` … `configs/levels/level15.json`) at startup via `import.meta.glob`.
 - Entering the final hex starts a short transition, then builds the next level.
 - When the final hex is touched, a win sound plays and the player's horizontal velocity is immediately zeroed every frame until the next level loads (vertical velocity is left intact for gravity).
 - Every new level resets:
@@ -117,7 +114,7 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
   - particle state
 - If the player falls below `y = -10`, a **RUN COLLAPSED** game-over screen appears.
 - On any game-over (gel depleted, fall, or other cause), pressing RETRY (or Enter/Escape on the game-over screen) always restarts from **level 1**, not the current level.
-- Level 50 completion shows a campaign-complete overlay.
+- Level 15 completion shows a campaign-complete overlay.
 
 ### 7. Pause and Menu System
 - **P key**: toggles a simple **GAME PAUSED** overlay. `updateFrame` is skipped while paused; the scene continues rendering so the overlay is visible. On unpause, the clock delta is discarded to prevent a physics spike.
@@ -143,9 +140,9 @@ Health is displayed as an integer from 100 to 0 (the internal `gelMass` remains 
 ### Overview
 Levels are stored as static JSON files rather than being generated at runtime.
 
-- **Location**: `configs/levels/level1.json` … `configs/levels/level50.json`
-- **Loader**: `buildLevelProfilesFromFiles(levelJsonModules)` in `core/Engine.js` reads all 50 files eagerly via `import.meta.glob("../configs/levels/level*.json", { eager: true, import: "default" })` and builds the `levelState.profiles` array in level order.
-- **Generator script**: `tools/generate-levels.js` is a one-off Node.js ESM script that was used to produce the initial 50 JSON files using the original seeded math. Run `node tools/generate-levels.js` again if the seed constants or generator math change.
+- **Location**: `configs/levels/level1.json` … `configs/levels/level15.json`
+- **Loader**: `buildLevelProfilesFromFiles(levelJsonModules)` in `core/Engine.js` reads all 15 files eagerly via `import.meta.glob("../configs/levels/level*.json", { eager: true, import: "default" })` and builds the `levelState.profiles` array in level order.
+- **Generator script**: `tools/generate-levels.js` is a one-off Node.js ESM script that was used to produce the initial level JSON files using the original seeded math. Run `node tools/generate-levels.js` again if the seed constants or generator math change (update `LEVEL_COUNT` in that script to 15 first).
 
 ### Level Profile Schema
 Each JSON file contains one profile object:
@@ -348,7 +345,7 @@ Use these when validating layout generation or progression through Playwright or
   - centralized player parameters (movement, drain costs, rockets, camera)
 - `configs/sound-config.json`
   - centralized sound volumes (keys: `backgroundMusic`, `rocket`, `jump`, `impact`, `win`)
-- `configs/levels/level1.json` … `configs/levels/level50.json`
+- `configs/levels/level1.json` … `configs/levels/level15.json`
   - static level data; each file is one profile object loaded eagerly at startup
 - `tools/generate-levels.js`
   - one-off Node.js ESM script that regenerates all 50 JSON files using the original seeded generator math; run with `node tools/generate-levels.js`
@@ -451,4 +448,4 @@ Look at:
   - **Paused / ESC Menu / Options**: Frosted green-glass overlays with `consolePop` entrance animation.
 
 ---
-*Last Updated: March 29, 2026 (game-over always restarts from level 1, variable-timestep physics fix, x-axis view boundary clamp, portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, development-only in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, deferred background music loading, production editor stripping, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua, relative-velocity landing impact fix for bobbing platforms)*
+*Last Updated: March 30, 2026 (campaign trimmed to 15 levels, title screen buttons use semi-transparent glassmorphism style with no backdrop-filter, ESC menu OPTIONS/MAIN MENU buttons match RESTART style, opening options from title screen keeps title screen visible as backdrop, game-over always restarts from level 1, variable-timestep physics fix, x-axis view boundary clamp, portrait 9:16 layout, platform lateral carry, double jump, compact icon-based HUD, vertical HP/rocket bars, route panel at bottom-left, minimap panel with always-visible player marker + offscreen direction arrow, camera X follow with configurable clamp, game-over Enter/Escape retry shortcut, development-only in-game level editor with orbital camera, move/rotate transform gizmo toggle on Q, Delete + Ctrl/Cmd+D editor shortcuts, live property editing, Ctrl/Cmd+Z undo, JSON-file-based level system, level editor SAVE button with direct disk write and Vite module cache invalidation, low-spec optimizations: capped render DPR, pooled particle meshes, throttled minimap SVG rebuilds, deferred background music loading, production editor stripping, Lua/JS bridge performance optimizations: key snapshot in getPlayerSnapshot, pending pickup values bundled into snapshot, LuaRuntime function reference cache, pre-allocated applyState buffer, in-place vector mutation, math.random() in Lua, relative-velocity landing impact fix for bobbing platforms)*

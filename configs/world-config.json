@@ -5,7 +5,7 @@
     "maxPixelRatio": 1.25
   },
   "campaign": {
-    "levelCount": 50,
+    "levelCount": 15,
     "levelSeed": 1597500383,
     "maxSafeLevelDrain": 0.9,
     "levelPatterns": ["glide", "pulse", "switchback", "crest"],
