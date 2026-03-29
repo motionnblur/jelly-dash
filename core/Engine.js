@@ -7,6 +7,7 @@ import { createJumpSoundController } from "../scripts/sound/jumpSound";
 import { createRocketSoundController } from "../scripts/sound/rocketSound";
 import { createImpactSoundController } from "../scripts/sound/impactSound";
 import { createWinSoundController } from "../scripts/sound/winSound";
+import { createButtonClickSoundController } from "../scripts/sound/buttonClickSound";
 import worldConfig from "../configs/world-config.json";
 import playerConfig from "../configs/player-config.json";
 import soundConfig from "../configs/sound-config.json";
@@ -40,6 +41,7 @@ let jumpSoundController;
 let rocketSoundController;
 let impactSoundController;
 let winSoundController;
+let buttonClickSoundController;
 let levelEditorModulePromise;
 
 const platforms = [];
@@ -55,7 +57,8 @@ const audioOptions = {
   jump:     { enabled: true, volume: soundConfig.jump?.volume             ?? 0.35 },
   rocket:   { enabled: true, volume: soundConfig.rocket?.volume           ?? 0.80 },
   impact:   { enabled: true, volume: soundConfig.impact?.volume           ?? 0.75 },
-  win:      { enabled: true, volume: soundConfig.win?.volume              ?? 0.75 },
+  win:         { enabled: true, volume: soundConfig.win?.volume              ?? 0.75 },
+  buttonClick: { enabled: true, volume: soundConfig.buttonClick?.volume     ?? 0.75 },
 };
 
 const {
@@ -488,6 +491,7 @@ async function init() {
   rocketSoundController = createRocketSoundController(soundConfig);
   impactSoundController = createImpactSoundController(soundConfig);
   winSoundController = createWinSoundController(soundConfig);
+  buttonClickSoundController = createButtonClickSoundController(soundConfig);
 
   clock = new THREE.Clock();
 
@@ -597,6 +601,11 @@ async function init() {
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("resize", onWindowResize);
   window.addEventListener("pointerdown", primeBackgroundMusic, { passive: true });
+  document.addEventListener("click", (e) => {
+    if (e.target.tagName === "BUTTON") {
+      buttonClickSoundController?.play();
+    }
+  });
 
   const titlePlayBtn = document.getElementById("title-play-btn");
   if (titlePlayBtn) {
@@ -674,13 +683,13 @@ function onKeyUp(event) {
 function applyAudioChannel(channel) {
   const opt = audioOptions[channel];
   const eff = audioOptions.master && opt.enabled;
-  const ctrl = { bgMusic: bgMusicController, jump: jumpSoundController, rocket: rocketSoundController, impact: impactSoundController, win: winSoundController }[channel];
+  const ctrl = { bgMusic: bgMusicController, jump: jumpSoundController, rocket: rocketSoundController, impact: impactSoundController, win: winSoundController, buttonClick: buttonClickSoundController }[channel];
   ctrl?.setVolume(opt.volume);
   ctrl?.setEnabled(eff);
 }
 
 function applyAllAudio() {
-  ["bgMusic", "jump", "rocket", "impact", "win"].forEach(applyAudioChannel);
+  ["bgMusic", "jump", "rocket", "impact", "win", "buttonClick"].forEach(applyAudioChannel);
 }
 
 function initOptionsUI() {
@@ -736,6 +745,9 @@ function initOptionsUI() {
 
   bindToggle("opt-win-enabled",    "win");
   bindSlider("opt-win-vol",    "opt-win-vol-val",    "win");
+
+  bindToggle("opt-btnclick-enabled", "buttonClick");
+  bindSlider("opt-btnclick-vol", "opt-btnclick-vol-val", "buttonClick");
 
   // BACK button
   if (uiManager.optionsBackBtn) {
