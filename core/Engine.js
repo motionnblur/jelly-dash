@@ -621,7 +621,6 @@ async function init() {
     titleOptionsBtn.addEventListener("click", () => {
       gameplayState.isOptionsOpen = true;
       gameplayState.optionsFromTitle = true;
-      uiManager.hideTitleScreen();
       uiManager.showOptions();
     });
   }
