@@ -160,6 +160,8 @@ const gameplayState = {
   isEscMenuOpen: false,
   isOptionsOpen: false,
   isEditorOpen: false,
+  isTitleScreen: true,
+  optionsFromTitle: false,
 };
 
 const jumpCameraState = {
@@ -597,6 +599,27 @@ async function init() {
   window.addEventListener("pointerdown", primeBackgroundMusic, { passive: true });
 
   uiManager.removeLoadingScreen();
+  setTimeout(() => uiManager.showTitleScreen(), 500);
+
+  const titlePlayBtn = document.getElementById("title-play-btn");
+  if (titlePlayBtn) {
+    titlePlayBtn.addEventListener("click", () => {
+      gameplayState.isTitleScreen = false;
+      uiManager.hideTitleScreen();
+      clock.getDelta(); // discard accumulated delta so physics doesn't spike on start
+    });
+  }
+
+  const titleOptionsBtn = document.getElementById("title-options-btn");
+  if (titleOptionsBtn) {
+    titleOptionsBtn.addEventListener("click", () => {
+      gameplayState.isOptionsOpen = true;
+      gameplayState.optionsFromTitle = true;
+      uiManager.hideTitleScreen();
+      uiManager.showOptions();
+    });
+  }
+
   animate();
 }
 
@@ -616,7 +639,7 @@ function onKeyDown(event) {
 
   if (gameplayState.isEditorOpen) return;
 
-  if (event.code === "KeyP" && !playerState.isGameOver && !levelState.isGameComplete) {
+  if (event.code === "KeyP" && !playerState.isGameOver && !levelState.isGameComplete && !gameplayState.isTitleScreen) {
     gameplayState.isPaused = !gameplayState.isPaused;
     if (gameplayState.isPaused) {
       uiManager.showPaused();
@@ -630,6 +653,8 @@ function onKeyDown(event) {
   if (event.code === "Escape" && !playerState.isGameOver && !levelState.isGameComplete) {
     if (gameplayState.isOptionsOpen) {
       closeOptions();
+    } else if (gameplayState.isTitleScreen) {
+      return;
     } else if (gameplayState.isEscMenuOpen) {
       closeEscMenu();
     } else {
@@ -732,7 +757,12 @@ function openOptions() {
 function closeOptions() {
   gameplayState.isOptionsOpen = false;
   uiManager.hideOptions();
-  uiManager.showEscMenu();
+  if (gameplayState.optionsFromTitle) {
+    gameplayState.optionsFromTitle = false;
+    uiManager.showTitleScreen();
+  } else {
+    uiManager.showEscMenu();
+  }
 }
 
 function openEscMenu() {
@@ -1770,7 +1800,7 @@ function updateFrame(rawDelta) {
 function animate() {
   animationId = requestAnimationFrame(animate);
 
-  if (!gameplayState.manualStepMode && !gameplayState.isPaused) {
+  if (!gameplayState.manualStepMode && !gameplayState.isPaused && !gameplayState.isTitleScreen) {
     updateFrame(clock.getDelta());
   }
 

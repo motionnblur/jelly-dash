@@ -30,6 +30,7 @@ export class UIManager {
     this.rocketValueEl = document.getElementById("rocket-value");
     this.rocketFillEl = document.getElementById("rocket-fill");
     this.rocketPanelEl = document.querySelector(".rocket-panel");
+    this.titleScreenEl = document.getElementById("title-screen");
     
     // Cheat Console
     this.consoleEl = document.getElementById("cheat-console");
@@ -444,6 +445,18 @@ export class UIManager {
   hideOptions() {
     if (this.optionsMenuEl) {
       this.optionsMenuEl.style.display = "none";
+    }
+  }
+
+  showTitleScreen() {
+    if (this.titleScreenEl) {
+      this.titleScreenEl.style.display = "flex";
+    }
+  }
+
+  hideTitleScreen() {
+    if (this.titleScreenEl) {
+      this.titleScreenEl.style.display = "none";
     }
   }
 
