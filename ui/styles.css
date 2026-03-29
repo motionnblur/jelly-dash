@@ -289,7 +289,7 @@ canvas {
 }
 
 #loading {
-  display: flex;
+  display: none;
   background: #040806;
   transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -815,9 +815,9 @@ h1, h2 {
 ═══════════════════════════════════════════════════════════════ */
 
 #title-screen {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  display: none;
+  display: flex;
   align-items: flex-end;
   justify-content: center;
   padding-bottom: clamp(48px, 8vh, 88px);
@@ -834,24 +834,6 @@ h1, h2 {
   text-align: center;
   width: min(90vw, 320px);
   animation: consolePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.title-kicker {
-  margin: 0 0 12px;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.4em;
-  text-transform: uppercase;
-  color: var(--font-muted);
-}
-
-.title-heading {
-  margin: 0 0 40px;
-  font-size: clamp(3.2rem, 14vw, 5.2rem);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 0.88;
-  color: var(--font-bright);
 }
 
 .title-nav {

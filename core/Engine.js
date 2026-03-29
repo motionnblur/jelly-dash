@@ -598,9 +598,6 @@ async function init() {
   window.addEventListener("resize", onWindowResize);
   window.addEventListener("pointerdown", primeBackgroundMusic, { passive: true });
 
-  uiManager.removeLoadingScreen();
-  setTimeout(() => uiManager.showTitleScreen(), 500);
-
   const titlePlayBtn = document.getElementById("title-play-btn");
   if (titlePlayBtn) {
     titlePlayBtn.addEventListener("click", () => {
