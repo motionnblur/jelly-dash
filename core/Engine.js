@@ -633,11 +633,6 @@ async function init() {
 function onKeyDown(event) {
   primeBackgroundMusic();
 
-  // Ignore game input if typing in an input field
-  if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
-    return;
-  }
-
   const canOpenConsole =
     !gameplayState.isTitleScreen &&
     !gameplayState.isPaused &&
@@ -646,12 +641,18 @@ function onKeyDown(event) {
     !gameplayState.isEditorOpen &&
     !playerState.isGameOver &&
     !levelState.isGameComplete;
+  const isConsoleOpen = uiManager.consoleEl?.style.display === "flex";
 
   if (event.code === "Backquote") {
     event.preventDefault();
-    if (canOpenConsole) {
+    if (isConsoleOpen || canOpenConsole) {
       uiManager.toggleConsole();
     }
+    return;
+  }
+
+  // Ignore game input if typing in an input field
+  if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
     return;
   }
 
