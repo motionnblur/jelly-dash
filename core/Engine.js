@@ -1895,7 +1895,7 @@ function setupTestingHooks() {
   };
 
   window.retryLevel = () => {
-    buildLevel(levelState.currentLevel);
+    buildLevel(1);
   };
 
   if (uiManager.escResumeBtn) {
