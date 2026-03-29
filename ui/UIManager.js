@@ -384,6 +384,7 @@ export class UIManager {
   }
 
   showGameOver(title, message) {
+    this.hideConsole();
     if (this.gameOverTitleEl && title) {
       this.gameOverTitleEl.innerText = title;
     }
@@ -402,6 +403,7 @@ export class UIManager {
   }
 
   showGameComplete() {
+    this.hideConsole();
     if (this.gameCompleteEl) {
       this.gameCompleteEl.style.display = "flex";
     }
@@ -414,6 +416,7 @@ export class UIManager {
   }
 
   showPaused() {
+    this.hideConsole();
     if (this.pausedEl) {
       this.pausedEl.style.display = "flex";
     }
@@ -426,6 +429,7 @@ export class UIManager {
   }
 
   showEscMenu() {
+    this.hideConsole();
     if (this.escMenuEl) {
       this.escMenuEl.style.display = "flex";
     }
@@ -438,6 +442,7 @@ export class UIManager {
   }
 
   showOptions() {
+    this.hideConsole();
     if (this.optionsMenuEl) {
       this.optionsMenuEl.style.display = "flex";
     }
@@ -450,6 +455,7 @@ export class UIManager {
   }
 
   showTitleScreen() {
+    this.hideConsole();
     if (this.titleScreenEl) {
       this.titleScreenEl.style.display = "flex";
     }
@@ -507,6 +513,14 @@ export class UIManager {
       if (this.consoleInputEl) this.consoleInputEl.value = "";
       this.consoleBooted = false;
     }
+  }
+
+  hideConsole() {
+    if (!this.consoleEl) return;
+    this.consoleEl.style.display = "none";
+    if (this.consoleLogEl) this.consoleLogEl.innerHTML = "";
+    if (this.consoleInputEl) this.consoleInputEl.value = "";
+    this.consoleBooted = false;
   }
 
   logToConsole(message) {

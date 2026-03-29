@@ -612,6 +612,7 @@ async function init() {
     titlePlayBtn.addEventListener("click", () => {
       gameplayState.isTitleScreen = false;
       uiManager.hideTitleScreen();
+      uiManager.hideConsole();
       clock.getDelta(); // discard accumulated delta so physics doesn't spike on start
     });
   }
@@ -621,6 +622,7 @@ async function init() {
     titleOptionsBtn.addEventListener("click", () => {
       gameplayState.isOptionsOpen = true;
       gameplayState.optionsFromTitle = true;
+      uiManager.hideConsole();
       uiManager.showOptions();
     });
   }
@@ -631,14 +633,25 @@ async function init() {
 function onKeyDown(event) {
   primeBackgroundMusic();
 
-  if (event.code === "F1") {
-    event.preventDefault();
-    uiManager.toggleConsole();
+  // Ignore game input if typing in an input field
+  if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
     return;
   }
 
-  // Ignore game input if typing in an input field
-  if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
+  const canOpenConsole =
+    !gameplayState.isTitleScreen &&
+    !gameplayState.isPaused &&
+    !gameplayState.isEscMenuOpen &&
+    !gameplayState.isOptionsOpen &&
+    !gameplayState.isEditorOpen &&
+    !playerState.isGameOver &&
+    !levelState.isGameComplete;
+
+  if (event.code === "Backquote") {
+    event.preventDefault();
+    if (canOpenConsole) {
+      uiManager.toggleConsole();
+    }
     return;
   }
 
@@ -759,6 +772,7 @@ function initOptionsUI() {
 function openOptions() {
   gameplayState.isOptionsOpen = true;
   uiManager.hideEscMenu();
+  uiManager.hideConsole();
   uiManager.showOptions();
 }
 
@@ -767,6 +781,7 @@ function closeOptions() {
   uiManager.hideOptions();
   if (gameplayState.optionsFromTitle) {
     gameplayState.optionsFromTitle = false;
+    uiManager.hideConsole();
     uiManager.showTitleScreen();
   } else {
     uiManager.showEscMenu();
@@ -776,6 +791,7 @@ function closeOptions() {
 function openEscMenu() {
   gameplayState.isEscMenuOpen = true;
   gameplayState.isPaused = true;
+  uiManager.hideConsole();
   uiManager.showEscMenu();
 }
 

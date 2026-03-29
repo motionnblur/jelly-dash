@@ -198,19 +198,19 @@ Difficulty grows across the 50 levels via the stored layout data:
 | Shift | Rocket boost |
 | P | Toggle pause |
 | ESC | Open/close ESC menu (or go back from Options) |
-| F1 | Toggle developer cheat terminal |
+| `` ` `` | Toggle developer cheat terminal |
 | Q | **Editor**: toggle gizmo mode (move axes / rotate ring) |
 | Delete | **Editor**: remove selected platform or pickup |
 | Ctrl+D / Cmd+D | **Editor**: duplicate selected platform or pickup |
 | Ctrl+Z / Cmd+Z | **Editor**: undo editor action |
 | R | **Editor**: reset orbit camera |
 
-> **Note:** When `gameplayState.isEditorOpen` is `true`, the main `onKeyDown` handler returns immediately after the `F1` check. P and ESC have no effect while the level editor is open; editor-specific shortcuts are handled by `onEditorKeyDown` in `editor/LevelEditor.js`.
+> **Note:** When `gameplayState.isEditorOpen` is `true`, the main `onKeyDown` handler returns immediately after the console hotkey check. P and ESC have no effect while the level editor is open; editor-specific shortcuts are handled by `onEditorKeyDown` in `editor/LevelEditor.js`.
 
-## Cheat System (F1 Terminal)
+## Cheat System (Backquote Terminal)
 The game includes a hidden system terminal for developers and advanced users.
 
-- **Trigger**: `F1` toggles the terminal UI.
+- **Trigger**: `` ` `` toggles the terminal UI.
 - **Animation**: The terminal pops in from the center of the screen with a scale/fade effect.
 - **Commands**:
   - `godmode`: Toggles invincibility.
