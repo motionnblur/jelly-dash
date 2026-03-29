@@ -46,6 +46,7 @@ function levelSaverPlugin() {
 }
 
 export default defineConfig({
+  base: "./",
   plugins: [levelSaverPlugin()],
   server: {
     watch: {

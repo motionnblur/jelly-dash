@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Side Scroller - Template</title>
+    <title>Gel Run</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
@@ -183,54 +183,6 @@
             <p>The final hex held. The gel survived the whole ascent.</p>
             <button id="complete-retry-btn">RUN IT AGAIN</button>
         </div>
-    </div>
-
-    <div id="dev-level-picker" style="
-        position: fixed;
-        bottom: 18px;
-        left: 18px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 14px;
-        padding: 8px 12px;
-        font-family: inherit;
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.5);
-        z-index: 9999;
-        backdrop-filter: blur(20px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-        letter-spacing: 0.1em;
-        font-weight: 700;
-        text-transform: uppercase;
-    ">
-        <span>DEV LVL</span>
-        <input id="dev-level-input" type="number" min="1" max="50" value="1" style="
-            width: 40px;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            color: #fff;
-            font-family: inherit;
-            font-size: 12px;
-            padding: 4px;
-            text-align: center;
-            outline: none;
-        ">
-        <button onclick="window.setLevelForDebug(document.getElementById('dev-level-input').value)" style="
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            color: #fff;
-            font-family: inherit;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 4px 10px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        ">GO</button>
     </div>
 
     <div id="cheat-console" style="display: none;">
