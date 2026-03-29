@@ -1944,6 +1944,15 @@ function setupTestingHooks() {
     });
   }
 
+  if (uiManager.escMainMenuBtn) {
+    uiManager.escMainMenuBtn.addEventListener("click", () => {
+      closeEscMenu();
+      buildLevel(1);
+      gameplayState.isTitleScreen = true;
+      uiManager.showTitleScreen();
+    });
+  }
+
   initOptionsUI();
 }
 

@@ -8,6 +8,7 @@ export class UIManager {
     this.escMenuEl = document.getElementById("esc-menu");
     this.escRestartBtn = document.getElementById("esc-restart-btn");
     this.escOptionsBtn = document.getElementById("esc-options-btn");
+    this.escMainMenuBtn = document.getElementById("esc-mainmenu-btn");
     this.escResumeBtn = document.getElementById("esc-resume-btn");
     this.optionsMenuEl = document.getElementById("options-menu");
     this.optionsBackBtn = document.getElementById("options-back-btn");
