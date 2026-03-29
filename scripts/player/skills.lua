@@ -16,7 +16,7 @@ local function spawnParticles(translation)
             translation.x + ((math.random() - 0.5) * 1.2),
             translation.y - 0.5,
             translation.z,
-            0xff4433,
+            0xffdd33,
             4,
             0.5,
             { sizeScale = 2.0 }
