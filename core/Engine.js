@@ -212,6 +212,7 @@ function getPlayerSnapshot() {
     velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
     isGrounded: !!hit,
     groundHitHandle: hit ? hit.collider.handle : null,
+    groundHitToi: hit ? hit.timeOfImpact : null,
     groundPlatformVelY,
     hitFinal: isFinalHit,
     isTransitioning: levelState.isTransitioning,
@@ -1489,11 +1490,17 @@ function finishCampaign() {
 }
 
 function sampleGroundHit(translation) {
+  // Scale ray start with current collider half-size so the origin stays
+  // just above the collider bottom regardless of how small the player is.
+  // At full size (gelMass=1.0, halfSize=0.5): rayStartY = -0.4, matching the
+  // original config. At smaller sizes the offset shrinks proportionally.
+  const halfSize = Math.max(0.05, 0.5 * playerState.gelMass);
+  const rayStartY = -(halfSize * 0.8);
   for (const xOffset of PLAYER_GROUND_RAY_OFFSETS) {
     const ray = new RAPIER.Ray(
       {
         x: translation.x + xOffset,
-        y: translation.y + PLAYER_GROUND_RAY_START_Y,
+        y: translation.y + rayStartY,
         z: translation.z,
       },
       { x: 0, y: -1, z: 0 },
@@ -1605,7 +1612,7 @@ function updateParticles(delta) {
   }
 }
 
-function updatePlatforms(groundHitHandle, delta) {
+function updatePlatforms(groundHitHandle, groundHitToi, delta) {
   const platformsToDestroy = [];
 
   for (const platform of platforms) {
@@ -1666,10 +1673,14 @@ function updatePlatforms(groundHitHandle, delta) {
         : 0;
     platform.currentX = platform.originalX + swingOffset;
 
-    if (isSteppedOn && platform.swingAmplitude > 0 && delta > 0 && playerBody) {
+    const halfSize = Math.max(0.05, 0.5 * playerState.gelMass);
+    const isInContact = isRayHit && groundHitToi !== null && groundHitToi <= halfSize * 0.4;
+    if (isInContact && delta > 0 && playerBody) {
       const platformVx = (platform.currentX - prevX) / delta;
       const vel = playerBody.linvel();
-      playerBody.setLinvel({ x: vel.x + platformVx, y: vel.y, z: vel.z }, true);
+      // Match Y to platform unless the player is actively jumping above it
+      const newVelY = vel.y > platform.lastVelY + 1.0 ? vel.y : platform.lastVelY;
+      playerBody.setLinvel({ x: vel.x + platformVx, y: newVelY, z: vel.z }, true);
     }
 
     platform.body.setNextKinematicTranslation({
@@ -1738,7 +1749,7 @@ function updateFrame(rawDelta) {
   }
 
   updateLandingCameraEffect(delta);
-  updatePlatforms(snapshot.groundHitHandle, delta);
+  updatePlatforms(snapshot.groundHitHandle, snapshot.groundHitToi, delta);
   updatePickups(snapshot.translation);
 
   if (snapshot.isGameOver || levelState.isGameComplete) {
