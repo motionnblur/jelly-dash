@@ -28,6 +28,7 @@ body {
   overflow: hidden;
   background: #040806; /* Very dark green-black */
   color: var(--font-main);
+  user-select: none;
   font-family: "Outfit", sans-serif;
   -webkit-font-smoothing: antialiased;
   display: flex;
