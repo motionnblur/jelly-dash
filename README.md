@@ -1,5 +1,12 @@
 # 3D Side Scroller Game Template (Three.js + Rapier)
 
+<img width="551" height="166" alt="Screenshot from 2026-03-30 23-10-20" src="https://github.com/user-attachments/assets/78082f1c-1616-4a1d-bf1f-d1a093309767" />
+
+itch.io link: https://motionnblur.itch.io/jelly-dash
+
+Note: The game is mainly vibe coded using claude code and codex.
+
+
 A premium-styled 3D side-scroller template built with **Three.js** for rendering and **Rapier** for physics.
 
 ## ✨ Features
@@ -8,6 +15,7 @@ A premium-styled 3D side-scroller template built with **Three.js** for rendering
 - **Locked Axis**: Horizontal platformer movement (Z-axis is locked).
 - **Premium Aesthetics**: Directional shadows, point lights, and modern typography.
 - **Vite Setup**: Fast development and building workflow.
+- **Lua**: For scripting language
 
 ## 🚀 Getting Started
 
