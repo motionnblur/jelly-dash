@@ -1,6 +1,6 @@
 # 3D Side Scroller Game Template (Three.js + Rapier)
 
-<img width="551" height="166" alt="Screenshot from 2026-03-30 23-10-20" src="https://github.com/user-attachments/assets/78082f1c-1616-4a1d-bf1f-d1a093309767" />
+<img width="558" height="173" alt="Screen Shot 2026-03-30 at 23 29 12" src="https://github.com/user-attachments/assets/3eca1c0c-138e-4afb-a831-12cff919497f" />
 
 itch.io link: https://motionnblur.itch.io/jelly-dash
 
