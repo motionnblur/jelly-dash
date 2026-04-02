@@ -365,7 +365,7 @@ function applyPlayerFrameState(nextState = {}) {
   }
 
   if (typeof nextState.isGameOver === "boolean") {
-    playerState.isGameOver = nextState.isGameOver;
+    playerState.isGameOver = playerState.isGameOver || nextState.isGameOver;
   }
 
   if (typeof nextState.lastGrounded === "boolean") {
@@ -1392,6 +1392,7 @@ function buildLevel(levelNumber) {
   levelState.transitionTimer = 0;
   levelState.pendingLevel = null;
   levelState.isGameComplete = false;
+  playerState.isGameOver = false;
 
   for (const definition of profile.layout) {
     createPlatform(
